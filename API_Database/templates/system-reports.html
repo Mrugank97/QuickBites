@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Reports - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="admin-dashboard.html">Dashboard</a></li>
+                        <li><a href="user-management.html">Users</a></li>
+                        <li><a href="outlet-management.html">Outlets</a></li>
+                        <li><a href="system-reports.html">Reports</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">System Reports</h1>
+
+        <div class="report-filters">
+            <div class="form-group">
+                <label for="report-type">Report Type</label>
+                <select id="report-type" class="form-control">
+                    <option value="sales">Sales Report</option>
+                    <option value="orders">Order Status Report</option>
+                    <option value="users">User Activity Report</option>
+                    <option value="feedback">Feedback Analysis</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="date-range">Date Range</label>
+                <select id="date-range" class="form-control">
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month" selected>This Month</option>
+                    <option value="year">This Year</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+            <div class="form-group" id="custom-date-range" style="display: none;">
+                <div class="date-inputs">
+                    <div>
+                        <label for="start-date">Start Date</label>
+                        <input type="date" id="start-date" class="form-control">
+                    </div>
+                    <div>
+                        <label for="end-date">End Date</label>
+                        <input type="date" id="end-date" class="form-control">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <button id="generate-report-btn" class="btn btn-primary">Generate Report</button>
+            </div>
+        </div>
+
+        <div id="report-container" class="mt-4">
+            <div class="loading">Select report type and date range, then click "Generate Report"</div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is authenticated as admin
+                const user = await requireAdmin();
+                
+                if (user) {
+                    // Set up event listeners
+                    document.getElementById('date-range').addEventListener('change', function() {
+                        const customDateRange = document.getElementById('custom-date-range');
+                        if (this.value === 'custom') {
+                            customDateRange.style.display = 'block';
+                        } else {
+                            customDateRange.style.display = 'none';
+                        }
+                    });
+                    
+                    document.getElementById('generate-report-btn').addEventListener('click', generateReport);
+                    
+                    // Set default dates for custom range
+                    const today = new Date();
+                    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                    
+                    document.getElementById('start-date').valueAsDate = firstDayOfMonth;
+                    document.getElementById('end-date').valueAsDate = today;
+                }
+            } catch (error) {
+                console.error('Error initializing reports page:', error);
+                showAlert('Error loading reports page: ' + error.message, 'danger');
+            }
+        });
+        
+        // Generate report based on selected options
+        async function generateReport() {
+            try {
+                const reportType = document.getElementById('report-type').value;
+                const dateRange = document.getElementById('date-range').value;
+                let startDate, endDate;
+                
+                if (dateRange === 'custom') {
+                    startDate = document.getElementById('start-date').value;
+                    endDate = document.getElementById('end-date').value;
+                    
+                    if (!startDate || !endDate) {
+                        showAlert('Please select both start and end dates for custom range', 'warning');
+                        return;
+                    }
+                    
+                    if (new Date(startDate) > new Date(endDate)) {
+                        showAlert('Start date cannot be after end date', 'warning');
+                        return;
+                    }
+                } else {
+                    // Calculate dates based on selected range
+                    const today = new Date();
+                    endDate = today.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+                    
+                    if (dateRange === 'today') {
+                        startDate = endDate;
+                    } else if (dateRange === 'week') {
+                        const weekAgo = new Date(today);
+                        weekAgo.setDate(today.getDate() - 7);
+                        startDate = weekAgo.toISOString().split('T')[0];
+                    } else if (dateRange === 'month') {
+                        const monthAgo = new Date(today);
+                        monthAgo.setMonth(today.getMonth() - 1);
+                        startDate = monthAgo.toISOString().split('T')[0];
+                    } else if (dateRange === 'year') {
+                        const yearAgo = new Date(today);
+                        yearAgo.setFullYear(today.getFullYear() - 1);
+                        startDate = yearAgo.toISOString().split('T')[0];
+                    }
+                }
+                
+                // Show loading state
+                const reportContainer = document.getElementById('report-container');
+                reportContainer.innerHTML = '<div class="loading">Generating report...</div>';
+                
+                // This is a placeholder - in a real implementation, you would fetch from an API
+                // For now, we'll simulate with a timeout
+                setTimeout(() => {
+                    if (reportType === 'sales') {
+                        displaySalesReport(startDate, endDate);
+                    } else if (reportType === 'orders') {
+                        displayOrderStatusReport(startDate, endDate);
+                    } else if (reportType === 'users') {
+                        displayUserActivityReport(startDate, endDate);
+                    } else if (reportType === 'feedback') {
+                        displayFeedbackAnalysis(startDate, endDate);
+                    }
+                }, 1500);
+                
+                // Actual implementation would be something like:
+                /*
+                const response = await fetch(`${API_BASE_URL}/api/reports/${reportType}?start=${startDate}&end=${endDate}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate report');
+                }
+                
+                const reportData = await response.json();
+                
+                if (reportType === 'sales') {
+                    displaySalesReport(reportData, startDate, endDate);
+                } else if (reportType === 'orders') {
+                    displayOrderStatusReport(reportData, startDate, endDate);
+                } else if (reportType === 'users') {
+                    displayUserActivityReport(reportData, startDate, endDate);
+                } else if (reportType === 'feedback') {
+                    displayFeedbackAnalysis(reportData, startDate, endDate);
+                }
+                */
+            } catch (error) {
+                console.error('Error generating report:', error);
+                document.getElementById('report-container').innerHTML = 
+                    '<div class="alert alert-danger">Error generating report: ' + error.message + '</div>';
+            }
+        }
+        
+        // Display sales report
+        function displaySalesReport(startDate, endDate) {
+            const reportContainer = document.getElementById('report-container');
+            
+            // Dummy data for sales report
+            const salesData = [
+                { outlet: 'Dawat', total: 45000, orders: 150 },
+                { outlet: 'Just Chill', total: 38000, orders: 120 },
+                { outlet: 'Tea Post', total: 25000, orders: 200 },
+                { outlet: 'AS FastFood', total: 32000, orders: 110 },
+                { outlet: 'VS Fastfood', total: 28000, orders: 95 },
+                { outlet: 'Madurai Chaat & More', total: 22000, orders: 85 }
+            ];
+            
+            const totalSales = salesData.reduce((sum, outlet) => sum + outlet.total, 0);
+            const totalOrders = salesData.reduce((sum, outlet) => sum + outlet.orders, 0);
+            
+            let html = `
+                <div class="report-header">
+                    <h2>Sales Report</h2>
+                    <p>Period: ${formatDate(startDate)} to ${formatDate(endDate)}</p>
+                </div>
+                
+                <div class="report-summary">
+                    <div class="summary-card">
+                        <div class="summary-title">Total Sales</div>
+                        <div class="summary-value">₹${totalSales.toLocaleString()}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-title">Total Orders</div>
+                        <div class="summary-value">${totalOrders}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-title">Average Order Value</div>
+                        <div class="summary-value">₹${(totalSales / totalOrders).toFixed(2)}</div>
+                    </div>
+                </div>
+                
+                <div class="table-responsive mt-4">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Outlet</th>
+                                <th>Orders</th>
+                                <th>Total Sales</th>
+                                <th>Average Order</th>
+                                <th>% of Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            salesData.forEach(outlet => {
+                const percentage = ((outlet.total / totalSales) * 100).toFixed(1);
+                const avgOrder = (outlet.total / outlet.orders).toFixed(2);
+                
+                html += `
+                    <tr>
+                        <td>${outlet.outlet}</td>
+                        <td>${outlet.orders}</td>
+                        <td>₹${outlet.total.toLocaleString()}</td>
+                        <td>₹${avgOrder}</td>
+                        <td>${percentage}%</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="report-actions mt-4">
+                    <button class="btn btn-secondary">Export as CSV</button>
+                    <button class="btn btn-secondary">Print Report</button>
+                </div>
+            `;
+            
+            reportContainer.innerHTML = html;
+        }
+        
+        // Display order status report
+        function displayOrderStatusReport(startDate, endDate) {
+            const reportContainer = document.getElementById('report-container');
+            
+            // Dummy data for order status report
+            const statusData = {
+                completed: 520,
+                pending: 85,
+                cancelled: 45
+            };
+            
+            const totalOrders = statusData.completed + statusData.pending + statusData.cancelled;
+            
+            let html = `
+                <div class="report-header">
+                    <h2>Order Status Report</h2>
+                    <p>Period: ${formatDate(startDate)} to ${formatDate(endDate)}</p>
+                </div>
+                
+                <div class="report-summary">
+                    <div class="summary-card">
+                        <div class="summary-title">Total Orders</div>
+                        <div class="summary-value">${totalOrders}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-title">Completion Rate</div>
+                        <div class="summary-value">${((statusData.completed / totalOrders) * 100).toFixed(1)}%</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-title">Cancellation Rate</div>
+                        <div class="summary-value">${((statusData.cancelled / totalOrders) * 100).toFixed(1)}%</div>
+                    </div>
+                </div>
+                
+                <div class="status-chart mt-4">
+                    <div class="chart-container">
+                        <div class="chart-bar completed" style="width: ${(statusData.completed / totalOrders) * 100}%">
+                            <span class="chart-label">Completed: ${statusData.completed} (${((statusData.completed / totalOrders) * 100).toFixed(1)}%)</span>
+                        </div>
+                        <div class="chart-bar pending" style="width: ${(statusData.pending / totalOrders) * 100}%">
+                            <span class="chart-label">Pending: ${statusData.pending} (${((statusData.pending / totalOrders) * 100).toFixed(1)}%)</span>
+                        </div>
+                        <div class="chart-bar cancelled" style="width: ${(statusData.cancelled / totalOrders) * 100}%">
+                            <span class="chart-label">Cancelled: ${statusData.cancelled} (${((statusData.cancelled / totalOrders) * 100).toFixed(1)}%)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-actions mt-4">
+                    <button class="btn btn-secondary">Export as CSV</button>
+                    <button class="btn btn-secondary">Print Report</button>
+                </div>
+            `;
+            
+            reportContainer.innerHTML = html;
+        }
+        
+        // Display user activity report
+        function displayUserActivityReport(startDate, endDate) {
+            const reportContainer = document.getElementById('report-container');
+            
+            // Dummy data for user activity report
+            const userData = {
+                totalUsers: 850,
+                newUsers: 120,
+                activeUsers: 620,
+                inactiveUsers: 230,
+                ordersPlaced: 750,
+                topUsers: [
+                    { username: 'john_doe', orders: 12, total: 3600 },
+                    { username: 'jane_smith', orders: 10, total: 3200 },
+                    { username: 'mike_johnson', orders: 8, total: 2800 },
+                    { username: 'sarah_williams', orders: 7, total: 2500 },
+                    { username: 'david_brown', orders: 6, total: 2200 }
+                ]
+            };
+            
+            let html = `
+                <div class="report-header">
+                    <h2>User Activity Report</h2>
+                    <p>Period: ${formatDate(startDate)} to ${formatDate(endDate)}</p>
+                </div>
+                
+                <div class="report-summary">
+                    <div class="summary-card">
+                        <div class="summary-title">Total Users</div>
+                        <div class="summary-value">${userData.totalUsers}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-title">New Users</div>
+                        <div class="summary-value">${userData.newUsers}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-title">Active Users</div>
+                        <div class="summary-value">${userData.activeUsers}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-title">Orders Placed</div>
+                        <div class="summary-value">${userData.ordersPlaced}</div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h3>Top Users by Order Volume</h3>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Orders Placed</th>
+                                    <th>Total Spent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            userData.topUsers.forEach(user => {
+                html += `
+                    <tr>
+                        <td>${user.username}</td>
+                        <td>${user.orders}</td>
+                        <td>₹${user.total.toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="report-actions mt-4">
+                    <button class="btn btn-secondary">Export as CSV</button>
+                    <button class="btn btn-secondary">Print Report</button>
+                </div>
+            `;
+            
+            reportContainer.innerHTML = html;
+        }
+        
+        // Display feedback analysis
+        function displayFeedbackAnalysis(startDate, endDate) {
+            const reportContainer = document.getElementById('report-container');
+            
+            // Dummy data for feedback analysis
+            const feedbackData = {
+                totalFeedback: 320,
+                averageRating: 4.2,
+                ratingDistribution: {
+                    5: 160,
+                    4: 90,
+                    3: 40,
+                    2: 20,
+                    1: 10
+                },
+                outletRatings: [
+                    { outlet: 'Dawat', rating: 4.5, count: 80 },
+                    { outlet: 'Just Chill', rating: 4.3, count: 65 },
+                    { outlet: 'Tea Post', rating: 4.0, count: 50 },
+                    { outlet: 'AS FastFood', rating: 4.2, count: 45 },
+                    { outlet: 'VS Fastfood', rating: 3.9, count: 40 },
+                    { outlet: 'Madurai Chaat & More', rating: 4.1, count: 40 }
+                ]
+            };
+            
+            let html = `
+                <div class="report-header">
+                    <h2>Feedback Analysis</h2>
+                    <p>Period: ${formatDate(startDate)} to ${formatDate(endDate)}</p>
+                </div>
+                
+                <div class="report-summary">
+                    <div class="summary-card">
+                        <div class="summary-title">Total Feedback</div>
+                        <div class="summary-value">${feedbackData.totalFeedback}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-title">Average Rating</div>
+                        <div class="summary-value">${feedbackData.averageRating.toFixed(1)} / 5</div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h3>Rating Distribution</h3>
+                    <div class="rating-chart">
+            `;
+            
+            for (let i = 5; i >= 1; i--) {
+                const count = feedbackData.ratingDistribution[i];
+                const percentage = ((count / feedbackData.totalFeedback) * 100).toFixed(1);
+                
+                html += `
+                    <div class="rating-row">
+                        <div class="rating-label">${i} Star</div>
+                        <div class="rating-bar-container">
+                            <div class="rating-bar" style="width: ${percentage}%"></div>
+                        </div>
+                        <div class="rating-count">${count} (${percentage}%)</div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h3>Outlet Ratings</h3>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Outlet</th>
+                                    <th>Average Rating</th>
+                                    <th>Feedback Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            feedbackData.outletRatings.forEach(outlet => {
+                html += `
+                    <tr>
+                        <td>${outlet.outlet}</td>
+                        <td>
+                            <div class="star-rating">
+                                ${'★'.repeat(Math.floor(outlet.rating))}
+                                ${outlet.rating % 1 >= 0.5 ? '½' : ''}
+                                ${'☆'.repeat(5 - Math.ceil(outlet.rating))}
+                                <span class="rating-value">${outlet.rating.toFixed(1)}</span>
+                            </div>
+                        </td>
+                        <td>${outlet.count}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="report-actions mt-4">
+                    <button class="btn btn-secondary">Export as CSV</button>
+                    <button class="btn btn-secondary">Print Report</button>
+                </div>
+            `;
+            
+            reportContainer.innerHTML = html;
+        }
+        
+        // Format date for display
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+    </script>
+    
+    <style>
+        /* Report styles */
+        .report-filters {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+        
+        .report-filters .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .date-inputs {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .date-inputs > div {
+            flex: 1;
+        }
+        
+        .report-header {
+            margin-bottom: 1.5rem;
+        }
+        
+        .report-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .summary-card {
+            flex: 1;
+            min-width: 200px;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .summary-title {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        
+        .summary-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .report-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+        
+        /* Chart styles */
+        .chart-container {
+            width: 100%;
+            margin-top: 1rem;
+        }
+        
+        .chart-bar {
+            height: 40px;
+            margin-bottom: 0.5rem;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 1rem;
+            border-radius: 4px;
+        }
+        
+        .chart-bar.completed {
+            background-color: #28a745;
+        }
+        
+        .chart-bar.pending {
+            background-color: #ffc107;
+        }
+        
+        .chart-bar.cancelled {
+            background-color: #dc3545;
+        }
+        
+        .chart-label {
+            white-space: nowrap;
+        }
+        
+        /* Rating chart styles */
+        .rating-chart {
+            margin-top: 1rem;
+        }
+        
+        .rating-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .rating-label {
+            width: 80px;
+        }
+        
+        .rating-bar-container {
+            flex: 1;
+            background-color: #f0f0f0;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .rating-bar {
+            height: 100%;
+            background-color: #ffc107;
+        }
+        
+        .rating-count {
+            width: 100px;
+            text-align: right;
+            padding-left: 1rem;
+        }
+        
+        /* Star rating styles */
+        .star-rating {
+            color: #ffc107;
+            display: flex;
+            align-items: center;
+        }
+        
+        .rating-value {
+            margin-left: 0.5rem;
+            color: #333;
+        }
+    </style>
+</body>
+</html>

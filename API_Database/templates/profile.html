@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="dashboard.html">Dashboard</a></li>
+                        <li><a href="profile.html">My Profile</a></li>
+                        <li><a href="#" id="admin-link" style="display: none;">Admin</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Member Profile</h1>
+
+        <div id="portfolio-container">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script src="../static/js/portfolio.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is authenticated
+                const user = await checkAuth();
+
+                if (user) {
+                    // Show admin link if user is admin
+                    if (user.role === 'admin') {
+                        const adminLink = document.getElementById('admin-link');
+                        adminLink.style.display = 'inline';
+                        adminLink.href = 'admin-dashboard.html';
+                    }
+
+                    // Get member ID from URL query parameter
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const memberId = urlParams.get('id');
+
+                    // Load portfolio (either for specified member or current user)
+                    loadPortfolio(memberId);
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+                showAlert('Error loading profile', 'danger');
+            }
+        });
+    </script>
+</body>
+</html>

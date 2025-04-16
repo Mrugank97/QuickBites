@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - QuickBites</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="admin-dashboard.html">Dashboard</a></li>
+                        <li><a href="user-management.html">Users</a></li>
+                        <li><a href="outlet-management.html">Outlets</a></li>
+                        <li><a href="outlet-manager-assignment.html">Assign Managers</a></li>
+                        <li><a href="system-reports.html">Reports</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">User Management</h1>
+        
+        <div class="user-management-container">
+            <div class="user-filters mb-4">
+                <div class="form-group">
+                    <label for="role-filter">Filter by Role</label>
+                    <select id="role-filter" class="form-control">
+                        <option value="">All Roles</option>
+                        <option value="student">Student</option>
+                        <option value="manager">Outlet Manager</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="search-input">Search Users</label>
+                    <input type="text" id="search-input" class="form-control" placeholder="Search by name, email, or ID">
+                </div>
+                <div class="form-actions">
+                    <button id="search-btn" class="btn btn-primary">Search</button>
+                    <button id="reset-btn" class="btn btn-secondary">Reset</button>
+                </div>
+            </div>
+            
+            <div class="user-list-container">
+                <div class="user-list-header">
+                    <h2>Users</h2>
+                    <button id="add-user-btn" class="btn btn-success">Add New User</button>
+                </div>
+                
+                <div class="user-list" id="user-list">
+                    <div class="loading">Loading users...</div>
+                </div>
+                
+                <div class="pagination" id="pagination">
+                    <!-- Pagination will be added here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Add/Edit User Modal -->
+        <div class="modal" id="user-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modal-title">Add New User</h2>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="user-form">
+                        <input type="hidden" id="user-id">
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <input type="text" id="username" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="role">Role</label>
+                            <select id="role" class="form-control" required>
+                                <option value="">-- Select Role --</option>
+                                <option value="student">Student</option>
+                                <option value="manager">Outlet Manager</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="password-group">
+                            <label for="password">Password</label>
+                            <input type="password" id="password" class="form-control">
+                            <small class="form-text text-muted">Leave blank to keep current password (when editing)</small>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save User</button>
+                            <button type="button" class="btn btn-secondary" id="cancel-btn">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is an admin
+                const user = await requireAdmin();
+                
+                if (user) {
+                    // Set up event listeners
+                    document.getElementById('search-btn').addEventListener('click', searchUsers);
+                    document.getElementById('reset-btn').addEventListener('click', resetFilters);
+                    document.getElementById('add-user-btn').addEventListener('click', showAddUserModal);
+                    document.getElementById('user-form').addEventListener('submit', saveUser);
+                    document.getElementById('cancel-btn').addEventListener('click', closeModal);
+                    document.querySelector('.close').addEventListener('click', closeModal);
+                    
+                    // Load users
+                    loadUsers();
+                }
+            } catch (error) {
+                console.error('Error initializing page:', error);
+                showAlert('Error loading page: ' + error.message, 'danger');
+            }
+        });
+        
+        // Load users from API
+        async function loadUsers() {
+            try {
+                // For demo purposes, we'll use dummy data
+                // In a real implementation, you would fetch this from an API
+                
+                // Simulate API call delay
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Dummy user data
+                const users = [
+                    { id: 1, username: 'john_student', email: 'john@example.com', role: 'student' },
+                    { id: 2, username: 'jane_manager', email: 'jane@example.com', role: 'manager' },
+                    { id: 3, username: 'admin_user', email: 'admin@example.com', role: 'admin' },
+                    { id: 4, username: 'student1', email: 'student1@example.com', role: 'student' },
+                    { id: 5, username: 'student2', email: 'student2@example.com', role: 'student' }
+                ];
+                
+                displayUsers(users);
+                
+                // In a real implementation, you would fetch from an API:
+                /*
+                const response = await fetch(`${API_BASE_URL}/api/users`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load users');
+                }
+                
+                const users = await response.json();
+                displayUsers(users);
+                */
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('user-list').innerHTML = 
+                    '<div class="alert alert-danger">Error loading users: ' + error.message + '</div>';
+            }
+        }
+        
+        // Display users in the UI
+        function displayUsers(users) {
+            const userList = document.getElementById('user-list');
+            
+            if (users.length === 0) {
+                userList.innerHTML = '<div class="no-data">No users found</div>';
+                return;
+            }
+            
+            let html = '<div class="user-table">';
+            html += `
+                <div class="user-table-header">
+                    <div class="user-id">ID</div>
+                    <div class="user-username">Username</div>
+                    <div class="user-email">Email</div>
+                    <div class="user-role">Role</div>
+                    <div class="user-actions">Actions</div>
+                </div>
+            `;
+            
+            users.forEach(user => {
+                html += `
+                    <div class="user-table-row">
+                        <div class="user-id">${user.id}</div>
+                        <div class="user-username">${user.username}</div>
+                        <div class="user-email">${user.email}</div>
+                        <div class="user-role">
+                            <span class="badge badge-${getRoleBadgeClass(user.role)}">${user.role}</span>
+                        </div>
+                        <div class="user-actions">
+                            <button class="btn btn-sm btn-primary edit-btn" data-id="${user.id}">Edit</button>
+                            <button class="btn btn-sm btn-danger delete-btn" data-id="${user.id}">Delete</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            userList.innerHTML = html;
+            
+            // Add event listeners to buttons
+            const editButtons = userList.querySelectorAll('.edit-btn');
+            const deleteButtons = userList.querySelectorAll('.delete-btn');
+            
+            editButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const userId = this.getAttribute('data-id');
+                    editUser(userId);
+                });
+            });
+            
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const userId = this.getAttribute('data-id');
+                    deleteUser(userId);
+                });
+            });
+        }
+        
+        // Get badge class based on role
+        function getRoleBadgeClass(role) {
+            switch (role.toLowerCase()) {
+                case 'admin':
+                    return 'primary';
+                case 'manager':
+                    return 'success';
+                case 'student':
+                    return 'info';
+                default:
+                    return 'secondary';
+            }
+        }
+        
+        // Search users
+        function searchUsers() {
+            const roleFilter = document.getElementById('role-filter').value;
+            const searchTerm = document.getElementById('search-input').value.trim().toLowerCase();
+            
+            // For demo purposes, we'll filter the dummy data
+            // In a real implementation, you would send these filters to the API
+            
+            // Dummy user data
+            const allUsers = [
+                { id: 1, username: 'john_student', email: 'john@example.com', role: 'student' },
+                { id: 2, username: 'jane_manager', email: 'jane@example.com', role: 'manager' },
+                { id: 3, username: 'admin_user', email: 'admin@example.com', role: 'admin' },
+                { id: 4, username: 'student1', email: 'student1@example.com', role: 'student' },
+                { id: 5, username: 'student2', email: 'student2@example.com', role: 'student' }
+            ];
+            
+            // Filter users
+            const filteredUsers = allUsers.filter(user => {
+                // Filter by role
+                if (roleFilter && user.role !== roleFilter) {
+                    return false;
+                }
+                
+                // Filter by search term
+                if (searchTerm) {
+                    return (
+                        user.username.toLowerCase().includes(searchTerm) ||
+                        user.email.toLowerCase().includes(searchTerm) ||
+                        user.id.toString().includes(searchTerm)
+                    );
+                }
+                
+                return true;
+            });
+            
+            displayUsers(filteredUsers);
+        }
+        
+        // Reset filters
+        function resetFilters() {
+            document.getElementById('role-filter').value = '';
+            document.getElementById('search-input').value = '';
+            loadUsers();
+        }
+        
+        // Show add user modal
+        function showAddUserModal() {
+            document.getElementById('modal-title').textContent = 'Add New User';
+            document.getElementById('user-form').reset();
+            document.getElementById('user-id').value = '';
+            document.getElementById('password-group').style.display = 'block';
+            document.getElementById('password').required = true;
+            
+            const modal = document.getElementById('user-modal');
+            modal.style.display = 'block';
+        }
+        
+        // Edit user
+        function editUser(userId) {
+            // For demo purposes, we'll use dummy data
+            // In a real implementation, you would fetch the user from the API
+            
+            // Find user in dummy data
+            const allUsers = [
+                { id: 1, username: 'john_student', email: 'john@example.com', role: 'student' },
+                { id: 2, username: 'jane_manager', email: 'jane@example.com', role: 'manager' },
+                { id: 3, username: 'admin_user', email: 'admin@example.com', role: 'admin' },
+                { id: 4, username: 'student1', email: 'student1@example.com', role: 'student' },
+                { id: 5, username: 'student2', email: 'student2@example.com', role: 'student' }
+            ];
+            
+            const user = allUsers.find(u => u.id == userId);
+            
+            if (user) {
+                document.getElementById('modal-title').textContent = 'Edit User';
+                document.getElementById('user-id').value = user.id;
+                document.getElementById('username').value = user.username;
+                document.getElementById('email').value = user.email;
+                document.getElementById('role').value = user.role;
+                document.getElementById('password').value = '';
+                document.getElementById('password-group').style.display = 'block';
+                document.getElementById('password').required = false;
+                
+                const modal = document.getElementById('user-modal');
+                modal.style.display = 'block';
+            }
+        }
+        
+        // Delete user
+        function deleteUser(userId) {
+            if (confirm('Are you sure you want to delete this user?')) {
+                // For demo purposes, we'll just show a success message
+                // In a real implementation, you would send a DELETE request to the API
+                
+                showAlert('User deleted successfully', 'success');
+                
+                // Reload users
+                loadUsers();
+            }
+        }
+        
+        // Save user (create or update)
+        async function saveUser(event) {
+            event.preventDefault();
+            
+            const userId = document.getElementById('user-id').value;
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const role = document.getElementById('role').value;
+            const password = document.getElementById('password').value;
+            
+            // For demo purposes, we'll just show a success message
+            // In a real implementation, you would send a POST or PUT request to the API
+            
+            if (userId) {
+                showAlert('User updated successfully', 'success');
+            } else {
+                showAlert('User created successfully', 'success');
+            }
+            
+            // Close modal
+            closeModal();
+            
+            // Reload users
+            loadUsers();
+        }
+        
+        // Close modal
+        function closeModal() {
+            const modal = document.getElementById('user-modal');
+            modal.style.display = 'none';
+        }
+    </script>
+    
+    <style>
+        .user-management-container {
+            margin-top: 2rem;
+        }
+        
+        .user-filters {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+        
+        .user-filters .form-group {
+            flex: 1;
+        }
+        
+        .user-list-container {
+            margin-top: 2rem;
+        }
+        
+        .user-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .user-table {
+            width: 100%;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .user-table-header {
+            display: flex;
+            background-color: #f5f5f5;
+            font-weight: bold;
+            padding: 0.75rem;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .user-table-row {
+            display: flex;
+            padding: 0.75rem;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .user-table-row:last-child {
+            border-bottom: none;
+        }
+        
+        .user-table-row:hover {
+            background-color: #f9f9f9;
+        }
+        
+        .user-id {
+            flex: 0 0 10%;
+        }
+        
+        .user-username {
+            flex: 0 0 20%;
+        }
+        
+        .user-email {
+            flex: 0 0 30%;
+        }
+        
+        .user-role {
+            flex: 0 0 20%;
+        }
+        
+        .user-actions {
+            flex: 0 0 20%;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+        
+        .badge-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .badge-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .badge-info {
+            background-color: #17a2b8;
+            color: white;
+        }
+        
+        .badge-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 0;
+            width: 50%;
+            max-width: 600px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+        }
+        
+        .close {
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .modal-body {
+            padding: 1rem;
+        }
+        
+        .loading, .no-data {
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+        }
+        
+        @media (max-width: 768px) {
+            .user-filters {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .modal-content {
+                width: 90%;
+            }
+        }
+    </style>
+</body>
+</html>

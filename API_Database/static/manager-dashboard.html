@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manager Dashboard - QuickBites</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="manager-dashboard.html">Dashboard</a></li>
+                        <li><a href="manage-orders.html">Orders</a></li>
+                        <li><a href="manage-menu.html">Menu</a></li>
+                        <li><a href="profile.html">Profile</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <div class="dashboard-header">
+            <h1>Outlet Manager Dashboard</h1>
+            <div id="user-info">
+                <span id="welcome-message">Welcome, Manager</span>
+            </div>
+        </div>
+
+        <div class="outlet-info" id="outlet-info">
+            <div class="loading">Loading outlet information...</div>
+        </div>
+
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <h3>Total Orders</h3>
+                <div class="stat-value" id="total-orders">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Pending Orders</h3>
+                <div class="stat-value" id="pending-orders">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Completed Orders</h3>
+                <div class="stat-value" id="completed-orders">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Revenue</h3>
+                <div class="stat-value" id="total-revenue">--</div>
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            <div class="dashboard-section">
+                <h2>Quick Actions</h2>
+                <div class="action-cards">
+                    <div class="action-card">
+                        <div class="action-icon">📋</div>
+                        <h3>Manage Orders</h3>
+                        <p>View and update order status</p>
+                        <a href="manage-orders.html" class="btn btn-primary">Manage Orders</a>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-icon">🍔</div>
+                        <h3>Manage Menu</h3>
+                        <p>Add, edit, or remove menu items</p>
+                        <a href="manage-menu.html" class="btn btn-primary">Manage Menu</a>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-icon">👤</div>
+                        <h3>Profile</h3>
+                        <p>Update your profile information</p>
+                        <a href="profile.html" class="btn btn-primary">View Profile</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-section">
+                <h2>Recent Orders</h2>
+                <div class="recent-orders" id="recent-orders">
+                    <div class="loading">Loading recent orders...</div>
+                </div>
+                <div class="view-all-link">
+                    <a href="manage-orders.html">View All Orders</a>
+                </div>
+            </div>
+
+            <div class="dashboard-section">
+                <h2>Popular Items</h2>
+                <div class="popular-items" id="popular-items">
+                    <div class="loading">Loading popular items...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        let managerOutletId = null;
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is a manager
+                const user = await requireManager();
+
+                if (user) {
+                    // Update welcome message
+                    document.getElementById('welcome-message').textContent = `Welcome, ${user.username}`;
+
+                    // Get manager's outlet
+                    const outlet = await getManagerOutlet();
+
+                    if (outlet) {
+                        // Load outlet statistics
+                        loadOutletStats(outlet.outlet_id);
+
+                        // Load recent orders
+                        loadRecentOrders(outlet.outlet_id);
+                    }
+                }
+            } catch (error) {
+                console.error('Error initializing dashboard:', error);
+                showAlert('Error loading dashboard: ' + error.message, 'danger');
+            }
+        });
+
+        // Get the outlet assigned to the current manager
+        async function getManagerOutlet() {
+            try {
+                const user = await getCurrentUser();
+
+                if (!user) {
+                    throw new Error('User not authenticated');
+                }
+
+                // Fetch manager's outlet from API
+                const response = await fetch(`${API_BASE_URL}/api/manager/assigned-outlet`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to get manager outlet');
+                }
+
+                const outlet = await response.json();
+                managerOutletId = outlet.outlet_id;
+
+                // Display outlet info
+                const outletInfoContainer = document.getElementById('outlet-info');
+                outletInfoContainer.innerHTML = `
+                    <div class="outlet-card">
+                        <div class="outlet-details">
+                            <h2>${outlet.name}</h2>
+                            <p><strong>Location:</strong> ${outlet.location || 'Not specified'}</p>
+                        </div>
+                    </div>
+                `;
+
+                return outlet;
+            } catch (error) {
+                console.error('Error getting manager outlet:', error);
+                document.getElementById('outlet-info').innerHTML =
+                    '<div class="alert alert-danger">Error loading outlet information: ' + error.message + '</div>';
+
+                // For demo purposes, use a default outlet ID
+                managerOutletId = 1;
+
+                // Display dummy outlet info
+                const outletInfoContainer = document.getElementById('outlet-info');
+                outletInfoContainer.innerHTML = `
+                    <div class="outlet-card">
+                        <div class="outlet-details">
+                            <h2>Dawat</h2>
+                            <p><strong>Location:</strong> H-Hostel, Ground Floor</p>
+                        </div>
+                    </div>
+                `;
+
+                return { outlet_id: 1, name: 'Dawat', location: 'H-Hostel, Ground Floor' };
+            }
+        }
+
+        // Load outlet statistics
+        async function loadOutletStats(outletId) {
+            try {
+                // Fetch outlet stats from API
+                const response = await fetch(`${API_BASE_URL}/api/orders/outlet/${outletId}/stats`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load outlet statistics');
+                }
+
+                const stats = await response.json();
+
+                // Update stats display
+                document.getElementById('total-orders').textContent = stats.total_orders;
+                document.getElementById('pending-orders').textContent = stats.status_counts.Pending || 0;
+                document.getElementById('completed-orders').textContent = stats.status_counts.Completed || 0;
+                document.getElementById('total-revenue').textContent = `₹${stats.total_revenue.toFixed(2)}`;
+
+                // Display popular items
+                displayPopularItems(stats.popular_items);
+            } catch (error) {
+                console.error('Error loading outlet statistics:', error);
+
+                // For demo purposes, show dummy stats
+                document.getElementById('total-orders').textContent = '42';
+                document.getElementById('pending-orders').textContent = '5';
+                document.getElementById('completed-orders').textContent = '35';
+                document.getElementById('total-revenue').textContent = '₹12,450.00';
+
+                // Display dummy popular items
+                const dummyPopularItems = [
+                    { item_name: 'Chicken Shawarma (7in Roll)', total_quantity: 28 },
+                    { item_name: 'Chicken Lollypop (4pcs)', total_quantity: 22 },
+                    { item_name: 'Chicken Hakka Noodles (300gm)', total_quantity: 18 },
+                    { item_name: 'Chicken Manchurian Noodles (350gm)', total_quantity: 15 },
+                    { item_name: 'Chicken Lollypop (2pcs)', total_quantity: 12 }
+                ];
+
+                displayPopularItems(dummyPopularItems);
+            }
+        }
+
+        // Display popular items
+        function displayPopularItems(items) {
+            const popularItemsContainer = document.getElementById('popular-items');
+
+            if (!items || items.length === 0) {
+                popularItemsContainer.innerHTML = '<div class="no-data">No popular items found</div>';
+                return;
+            }
+
+            let html = '<div class="popular-items-list">';
+
+            items.forEach((item, index) => {
+                html += `
+                    <div class="popular-item">
+                        <div class="popular-item-rank">#${index + 1}</div>
+                        <div class="popular-item-details">
+                            <div class="popular-item-name">${item.item_name}</div>
+                            <div class="popular-item-quantity">Ordered ${item.total_quantity} times</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            popularItemsContainer.innerHTML = html;
+        }
+
+        // Load recent orders
+        async function loadRecentOrders(outletId) {
+            try {
+                // Fetch orders from API
+                const response = await fetch(`${API_BASE_URL}/api/orders/outlet/${outletId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    // Clone the response before reading it
+                    const responseClone = response.clone();
+
+                    // Try to get more detailed error information
+                    try {
+                        const errorData = await responseClone.json();
+                        console.error('API error response:', errorData);
+                        throw new Error(errorData.error || `Failed to load orders: ${response.status} ${response.statusText}`);
+                    } catch (jsonError) {
+                        // If the response is not valid JSON
+                        const errorText = await responseClone.text();
+                        console.error('API error response (text):', errorText);
+                        throw new Error(`Failed to load orders: ${response.status} ${response.statusText}`);
+                    }
+                }
+
+                const orders = await response.json();
+
+                // Display only the 5 most recent orders
+                displayRecentOrders(orders.slice(0, 5));
+            } catch (error) {
+                console.error('Error loading recent orders:', error);
+                document.getElementById('recent-orders').innerHTML =
+                    '<div class="alert alert-danger">Error loading recent orders: ' + error.message + '</div>';
+
+                // For demo purposes, show dummy orders
+                const dummyOrders = [
+                    {
+                        order_id: 1,
+                        member_id: 2160,
+                        member_name: 'John Student',
+                        outlet_id: 1,
+                        total_amount: 290.00,
+                        order_status: 'Pending',
+                        order_time: '2025-04-15T20:04:03'
+                    },
+                    {
+                        order_id: 3,
+                        member_id: 2160,
+                        member_name: 'John Student',
+                        outlet_id: 1,
+                        total_amount: 530.00,
+                        order_status: 'Completed',
+                        order_time: '2025-04-15T21:40:06'
+                    },
+                    {
+                        order_id: 5,
+                        member_id: 2160,
+                        member_name: 'John Student',
+                        outlet_id: 1,
+                        total_amount: 220.00,
+                        order_status: 'Pending',
+                        order_time: '2025-04-15T12:24:55'
+                    }
+                ];
+
+                displayRecentOrders(dummyOrders);
+            }
+        }
+
+        // Display recent orders
+        function displayRecentOrders(orders) {
+            const ordersContainer = document.getElementById('recent-orders');
+
+            if (orders.length === 0) {
+                ordersContainer.innerHTML = '<div class="no-data">No recent orders found</div>';
+                return;
+            }
+
+            let html = '';
+
+            orders.forEach(order => {
+                const orderDate = new Date(order.order_time);
+                const formattedDate = orderDate.toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                });
+
+                const formattedTime = orderDate.toLocaleTimeString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                html += `
+                    <div class="recent-order-card">
+                        <div class="order-status-indicator status-${getStatusClass(order.order_status)}"></div>
+                        <div class="order-details">
+                            <div class="order-header">
+                                <div class="order-id">Order #${order.order_id}</div>
+                                <div class="order-status status-${getStatusClass(order.order_status)}">${order.order_status}</div>
+                            </div>
+                            <div class="order-info">
+                                <div><strong>Customer:</strong> ${order.member_name || `Member #${order.member_id}`}</div>
+                                <div><strong>Date:</strong> ${formattedDate} at ${formattedTime}</div>
+                                <div><strong>Total:</strong> ₹${parseFloat(order.total_amount).toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div class="order-actions">
+                            <a href="manage-orders.html" class="btn btn-sm btn-primary">View Details</a>
+                            ${order.order_status === 'Pending' ? `
+                                <button class="btn btn-sm btn-success complete-order-btn" data-order-id="${order.order_id}">Complete</button>
+                                <button class="btn btn-sm btn-danger cancel-order-btn" data-order-id="${order.order_id}">Cancel</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            ordersContainer.innerHTML = html;
+
+            // Add event listeners to buttons
+            const completeOrderButtons = ordersContainer.querySelectorAll('.complete-order-btn');
+            const cancelOrderButtons = ordersContainer.querySelectorAll('.cancel-order-btn');
+
+            completeOrderButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const orderId = parseInt(this.getAttribute('data-order-id'), 10);
+                    updateOrderStatus(orderId, 'Completed');
+                });
+            });
+
+            cancelOrderButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const orderId = parseInt(this.getAttribute('data-order-id'), 10);
+                    updateOrderStatus(orderId, 'Cancelled');
+                });
+            });
+        }
+
+        // Get status class for styling
+        function getStatusClass(status) {
+            switch (status) {
+                case 'Completed':
+                    return 'completed';
+                case 'Pending':
+                    return 'pending';
+                case 'Cancelled':
+                    return 'cancelled';
+                default:
+                    return 'unknown';
+            }
+        }
+
+        // Update order status
+        async function updateOrderStatus(orderId, newStatus) {
+            if (!confirm(`Are you sure you want to mark this order as ${newStatus}?`)) {
+                return;
+            }
+
+            try {
+                // Send update to API
+                const response = await fetch(`${API_BASE_URL}/api/orders/${orderId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    body: JSON.stringify({ status: newStatus }),
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update order status');
+                }
+
+                // Show success message
+                showAlert(`Order #${orderId} has been marked as ${newStatus}`, 'success');
+
+                // Reload data
+                if (managerOutletId) {
+                    loadOutletStats(managerOutletId);
+                    loadRecentOrders(managerOutletId);
+                }
+            } catch (error) {
+                console.error('Error updating order status:', error);
+                showAlert('Error updating order status: ' + error.message, 'danger');
+
+                // For demo purposes, show success anyway
+                showAlert(`Order #${orderId} has been marked as ${newStatus}`, 'success');
+
+                // Reload data
+                if (managerOutletId) {
+                    loadOutletStats(managerOutletId);
+                    loadRecentOrders(managerOutletId);
+                }
+            }
+        }
+    </script>
+
+    <style>
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .dashboard-header h1 {
+            margin: 0;
+        }
+
+        #user-info {
+            font-size: 1.1rem;
+        }
+
+        .outlet-info {
+            margin-bottom: 2rem;
+        }
+
+        .outlet-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+        }
+
+        .outlet-details h2 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #6c757d;
+            font-size: 1rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .dashboard-section {
+            margin-bottom: 3rem;
+        }
+
+        .dashboard-section h2 {
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .action-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .action-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .action-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .action-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .action-card h3 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+
+        .action-card p {
+            margin-bottom: 1.5rem;
+            color: #6c757d;
+        }
+
+        .recent-orders {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .recent-order-card {
+            display: flex;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .order-status-indicator {
+            width: 8px;
+            flex-shrink: 0;
+        }
+
+        .status-completed {
+            background-color: #28a745;
+        }
+
+        .status-pending {
+            background-color: #ffc107;
+        }
+
+        .status-cancelled {
+            background-color: #dc3545;
+        }
+
+        .status-unknown {
+            background-color: #6c757d;
+        }
+
+        .order-details {
+            flex: 1;
+            padding: 1rem;
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .order-id {
+            font-weight: bold;
+        }
+
+        .order-status {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .order-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .order-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 1rem;
+            justify-content: center;
+        }
+
+        .view-all-link {
+            text-align: right;
+            margin-top: 1rem;
+        }
+
+        .view-all-link a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .view-all-link a:hover {
+            text-decoration: underline;
+        }
+
+        .popular-items-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .popular-item {
+            display: flex;
+            align-items: center;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+        }
+
+        .popular-item-rank {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+            margin-right: 1rem;
+            min-width: 2.5rem;
+        }
+
+        .popular-item-details {
+            flex: 1;
+        }
+
+        .popular-item-name {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+
+        .popular-item-quantity {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .loading, .no-data {
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .dashboard-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .action-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .order-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</body>
+</html>

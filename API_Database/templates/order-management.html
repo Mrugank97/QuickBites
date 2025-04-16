@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Management - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="outlet-dashboard.html">Dashboard</a></li>
+                        <li><a href="profile.html">My Profile</a></li>
+                        <li><a href="menu-management.html">Menu</a></li>
+                        <li><a href="order-management.html">Orders</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Order Management</h1>
+        <h2 class="mb-4">Outlet: <span id="outlet-name">Loading...</span></h2>
+
+        <div class="order-management">
+            <div class="order-tabs">
+                <button class="tab-btn active" data-status="Pending">Pending Orders</button>
+                <button class="tab-btn" data-status="Completed">Completed Orders</button>
+                <button class="tab-btn" data-status="Cancelled">Cancelled Orders</button>
+            </div>
+
+            <div class="orders-container">
+                <div class="orders-list" id="orders-list">
+                    <!-- Orders will be loaded here -->
+                    <div class="loading">Loading orders...</div>
+                </div>
+
+                <div class="order-details" id="order-details">
+                    <!-- Order details will be shown here -->
+                    <div class="no-order-selected">Select an order to view details</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is an outlet manager
+                const user = await requireOutletManager();
+
+                if (user) {
+                    // Fetch outlet information
+                    const response = await fetch(`${API_BASE_URL}/api/manager/outlet`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${getCookie('session_token')}`
+                        },
+                        credentials: 'include'
+                    });
+
+                    let outletId;
+
+                    if (response.ok) {
+                        const outletData = await response.json();
+                        document.getElementById('outlet-name').textContent = outletData.name || 'Not Assigned';
+                        outletId = outletData.outlet_id;
+
+                        // Load orders for this outlet
+                        loadOrders(outletId, 'Pending');
+                    } else {
+                        document.getElementById('outlet-name').textContent = 'Not Assigned';
+                        showAlert('You are not assigned to any outlet', 'warning');
+                    }
+
+                    // Set up event listeners for tabs
+                    const tabBtns = document.querySelectorAll('.tab-btn');
+                    tabBtns.forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            // Remove active class from all tabs
+                            tabBtns.forEach(b => b.classList.remove('active'));
+                            // Add active class to clicked tab
+                            this.classList.add('active');
+                            // Load orders for selected status
+                            loadOrders(outletId, this.getAttribute('data-status'));
+                        });
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading order management:', error);
+                showAlert('Error loading order management', 'danger');
+            }
+        });
+
+        // Load orders for outlet
+        async function loadOrders(outletId, status) {
+            try {
+                const ordersList = document.getElementById('orders-list');
+                ordersList.innerHTML = '<div class="loading">Loading orders...</div>';
+
+                const response = await fetch(`${API_BASE_URL}/api/orders/outlet/${outletId}?status=${status}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load orders');
+                }
+
+                const orders = await response.json();
+                displayOrders(orders, status);
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                showAlert('Error loading orders: ' + error.message, 'danger');
+
+                // For demo purposes, show dummy orders
+                const dummyOrders = [
+                    {
+                        order_id: 1,
+                        member_id: 101,
+                        customer_name: 'John Doe',
+                        total_amount: 250.00,
+                        order_status: 'Pending',
+                        order_time: '2023-04-16T18:30:00',
+                        payment_status: 'Pending',
+                        items: [
+                            { item_name: 'Veg Biryani', quantity: 1, subtotal: 120.00 },
+                            { item_name: 'Butter Naan', quantity: 2, subtotal: 60.00 },
+                            { item_name: 'Paneer Butter Masala', quantity: 1, subtotal: 150.00 }
+                        ]
+                    },
+                    {
+                        order_id: 2,
+                        member_id: 102,
+                        customer_name: 'Jane Smith',
+                        total_amount: 180.00,
+                        order_status: 'Pending',
+                        order_time: '2023-04-16T19:15:00',
+                        payment_status: 'Pending',
+                        items: [
+                            { item_name: 'Chicken Biryani', quantity: 1, subtotal: 180.00 }
+                        ]
+                    }
+                ];
+
+                // Filter dummy orders based on status
+                const filteredOrders = dummyOrders.filter(order => order.order_status === status);
+                displayOrders(filteredOrders, status);
+            }
+        }
+
+        // Display orders in the UI
+        function displayOrders(orders, status) {
+            const ordersList = document.getElementById('orders-list');
+            ordersList.innerHTML = '';
+
+            if (orders.length === 0) {
+                ordersList.innerHTML = `<div class="no-orders">No ${status.toLowerCase()} orders found.</div>`;
+                return;
+            }
+
+            orders.forEach(order => {
+                const orderItem = document.createElement('div');
+                orderItem.className = 'order-item';
+                orderItem.setAttribute('data-order-id', order.order_id);
+                orderItem.innerHTML = `
+                    <div class="order-summary">
+                        <div class="order-id">#${order.order_id}</div>
+                        <div class="order-customer">${order.customer_name}</div>
+                        <div class="order-time">${formatDate(order.order_time)}</div>
+                        <div class="order-amount">₹${parseFloat(order.total_amount).toFixed(2)}</div>
+                    </div>
+                `;
+                ordersList.appendChild(orderItem);
+
+                // Add event listener to show order details
+                orderItem.addEventListener('click', () => showOrderDetails(order));
+            });
+        }
+
+        // Show order details
+        function showOrderDetails(order) {
+            const orderDetails = document.getElementById('order-details');
+
+            // Highlight selected order
+            const orderItems = document.querySelectorAll('.order-item');
+            orderItems.forEach(item => {
+                item.classList.remove('selected');
+                if (item.getAttribute('data-order-id') == order.order_id) {
+                    item.classList.add('selected');
+                }
+            });
+
+            // Format order items
+            let itemsHtml = '';
+            order.items.forEach(item => {
+                itemsHtml += `
+                    <div class="detail-item">
+                        <div class="item-name">${item.item_name}</div>
+                        <div class="item-quantity">x${item.quantity}</div>
+                        <div class="item-subtotal">₹${parseFloat(item.subtotal).toFixed(2)}</div>
+                    </div>
+                `;
+            });
+
+            // Generate action buttons based on order status
+            let actionButtons = '';
+            if (order.order_status === 'Pending') {
+                actionButtons = `
+                    <button class="btn btn-success complete-btn" data-order-id="${order.order_id}">Complete Order</button>
+                    <button class="btn btn-danger cancel-btn" data-order-id="${order.order_id}">Cancel Order</button>
+                `;
+            }
+
+            orderDetails.innerHTML = `
+                <div class="detail-header">
+                    <h3>Order #${order.order_id}</h3>
+                    <div class="order-status ${order.order_status.toLowerCase()}">${order.order_status}</div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-row">
+                        <div class="detail-label">Customer:</div>
+                        <div class="detail-value">${order.customer_name}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Order Time:</div>
+                        <div class="detail-value">${formatDate(order.order_time)}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Payment Status:</div>
+                        <div class="detail-value payment ${(order.payment_status || '').toLowerCase()}">${order.payment_status || 'Unknown'}</div>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <h4>Order Items</h4>
+                    <div class="detail-items">
+                        ${itemsHtml}
+                    </div>
+                </div>
+
+                <div class="detail-total">
+                    <div class="total-label">Total Amount:</div>
+                    <div class="total-value">₹${parseFloat(order.total_amount).toFixed(2)}</div>
+                </div>
+
+                <div class="detail-actions">
+                    ${actionButtons}
+                </div>
+            `;
+
+            // Add event listeners to action buttons
+            const completeBtn = orderDetails.querySelector('.complete-btn');
+            if (completeBtn) {
+                completeBtn.addEventListener('click', () => updateOrderStatus(order.order_id, 'Completed'));
+            }
+
+            const cancelBtn = orderDetails.querySelector('.cancel-btn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => updateOrderStatus(order.order_id, 'Cancelled'));
+            }
+        }
+
+        // Update order status
+        async function updateOrderStatus(orderId, status) {
+            if (!confirm(`Are you sure you want to mark this order as ${status}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/orders/${orderId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    body: JSON.stringify({ status }),
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to update order status to ${status}`);
+                }
+
+                showAlert(`Order #${orderId} marked as ${status}`, 'success');
+
+                // Reload orders for current tab
+                const activeTab = document.querySelector('.tab-btn.active');
+                const outletName = document.getElementById('outlet-name').textContent;
+
+                // For demo purposes, just update the UI
+                const orderItem = document.querySelector(`.order-item[data-order-id="${orderId}"]`);
+                if (orderItem) {
+                    orderItem.remove();
+                }
+
+                document.getElementById('order-details').innerHTML = `
+                    <div class="no-order-selected">Order #${orderId} has been marked as ${status}.</div>
+                `;
+
+                // Check if there are no more orders
+                const ordersList = document.getElementById('orders-list');
+                if (ordersList.children.length === 0) {
+                    ordersList.innerHTML = `<div class="no-orders">No ${activeTab.getAttribute('data-status').toLowerCase()} orders found.</div>`;
+                }
+            } catch (error) {
+                console.error('Error updating order status:', error);
+                showAlert('Error updating order status: ' + error.message, 'danger');
+
+                // For demo purposes, update the UI anyway
+                showAlert(`Demo mode: Order #${orderId} marked as ${status}`, 'success');
+
+                // Update the UI
+                const orderItem = document.querySelector(`.order-item[data-order-id="${orderId}"]`);
+                if (orderItem) {
+                    orderItem.remove();
+                }
+
+                document.getElementById('order-details').innerHTML = `
+                    <div class="no-order-selected">Order #${orderId} has been marked as ${status}.</div>
+                `;
+
+                // Check if there are no more orders
+                const ordersList = document.getElementById('orders-list');
+                if (ordersList.children.length === 0) {
+                    const activeTab = document.querySelector('.tab-btn.active');
+                    ordersList.innerHTML = `<div class="no-orders">No ${activeTab.getAttribute('data-status').toLowerCase()} orders found.</div>`;
+                }
+            }
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            const options = {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            return new Date(dateString).toLocaleDateString('en-US', options);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Feedback - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="outlet-dashboard.html">Dashboard</a></li>
+                        <li><a href="order-management.html">Orders</a></li>
+                        <li><a href="menu-management.html">Menu</a></li>
+                        <li><a href="view-feedback.html">Feedback</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <div class="header-with-actions">
+            <h1 class="mt-4 mb-4">Customer Feedback</h1>
+            <div class="filter-controls">
+                <select id="rating-filter" class="form-control">
+                    <option value="all">All Ratings</option>
+                    <option value="5">5 Stars</option>
+                    <option value="4">4 Stars</option>
+                    <option value="3">3 Stars</option>
+                    <option value="2">2 Stars</option>
+                    <option value="1">1 Star</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="feedback-container">
+            <div class="loading">Loading feedback...</div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is authenticated as outlet manager
+                const user = await requireOutletManager();
+
+                if (user) {
+                    // Get outlet ID for this manager
+                    const outletId = await getManagerOutlet(user.member_id);
+
+                    if (outletId) {
+                        // Load feedback for this outlet
+                        loadFeedback(outletId);
+
+                        // Set up rating filter
+                        document.getElementById('rating-filter').addEventListener('change', function() {
+                            filterFeedback(this.value);
+                        });
+                    } else {
+                        document.getElementById('feedback-container').innerHTML =
+                            '<div class="alert alert-warning">You do not have an outlet assigned to your account.</div>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error initializing feedback page:', error);
+                showAlert('Error loading feedback page: ' + error.message, 'danger');
+            }
+        });
+
+        // Get outlet ID for manager
+        async function getManagerOutlet(managerId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/outlet/manager/${managerId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to get outlet information');
+                }
+
+                const data = await response.json();
+                return data.outlet_id;
+            } catch (error) {
+                console.error('Error getting outlet for manager:', error);
+                showAlert('Error: ' + error.message, 'danger');
+                return null;
+            }
+        }
+
+        // Load feedback for outlet
+        async function loadFeedback(outletId) {
+            try {
+                const feedbackContainer = document.getElementById('feedback-container');
+
+                const response = await fetch(`${API_BASE_URL}/api/feedback/outlet/${outletId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load feedback');
+                }
+
+                const feedbackData = await response.json();
+
+                // Store feedback data for filtering
+                window.allFeedback = feedbackData;
+
+                // Display feedback
+                displayFeedback(feedbackData);
+
+                // If no feedback is available, show fallback data for demo purposes
+                if (feedbackData.length === 0) {
+                    // Dummy feedback data for demonstration
+                    const dummyFeedback = [
+                        {
+                            feedback_id: 1,
+                            member_id: 2160,
+                            customer_name: 'John Doe',
+                            rating: 5,
+                            comments: 'Great food and service! The Chicken Biryani was amazing.',
+                            feedback_time: '2023-04-15T14:30:00',
+                            order_id: 1
+                        },
+                        {
+                            feedback_id: 2,
+                            member_id: 2161,
+                            customer_name: 'Jane Smith',
+                            rating: 4,
+                            comments: 'Food was good but delivery was a bit slow.',
+                            feedback_time: '2023-04-14T18:45:00',
+                            order_id: 2
+                        }
+                    ];
+
+                    // Show a message that we're displaying demo data
+                    showAlert('No feedback found. Showing demo data for preview purposes.', 'info');
+
+                    // Store and display the dummy feedback
+                    window.allFeedback = dummyFeedback;
+                    displayFeedback(dummyFeedback);
+                }
+            } catch (error) {
+                console.error('Error loading feedback:', error);
+                document.getElementById('feedback-container').innerHTML =
+                    '<div class="alert alert-danger">Error loading feedback: ' + error.message + '</div>';
+
+                // Show dummy data for demo purposes
+                const dummyFeedback = [
+                    {
+                        feedback_id: 1,
+                        member_id: 2160,
+                        customer_name: 'John Doe',
+                        rating: 5,
+                        comments: 'Great food and service! The Chicken Biryani was amazing.',
+                        feedback_time: '2023-04-15T14:30:00',
+                        order_id: 1
+                    },
+                    {
+                        feedback_id: 2,
+                        member_id: 2161,
+                        customer_name: 'Jane Smith',
+                        rating: 4,
+                        comments: 'Food was good but delivery was a bit slow.',
+                        feedback_time: '2023-04-14T18:45:00',
+                        order_id: 2
+                    }
+                ];
+
+                // Show a message that we're displaying demo data
+                showAlert('Error loading feedback. Showing demo data for preview purposes.', 'warning');
+
+                // Store and display the dummy feedback
+                window.allFeedback = dummyFeedback;
+                displayFeedback(dummyFeedback);
+            }
+        }
+
+        // Display feedback
+        function displayFeedback(feedbackData) {
+            const feedbackContainer = document.getElementById('feedback-container');
+
+            if (feedbackData.length === 0) {
+                feedbackContainer.innerHTML = '<div class="no-feedback">No feedback has been submitted yet.</div>';
+                return;
+            }
+
+            let html = '';
+
+            // Sort feedback by date (newest first)
+            feedbackData.sort((a, b) => new Date(b.feedback_time) - new Date(a.feedback_time));
+
+            feedbackData.forEach(feedback => {
+                const date = new Date(feedback.feedback_time).toLocaleDateString();
+                const time = new Date(feedback.feedback_time).toLocaleTimeString();
+
+                html += `
+                    <div class="feedback-card" data-rating="${feedback.rating}">
+                        <div class="feedback-header">
+                            <div class="feedback-customer">${feedback.customer_name}</div>
+                            <div class="feedback-date">${date} at ${time}</div>
+                        </div>
+                        <div class="feedback-rating">
+                            ${'★'.repeat(feedback.rating)}${'☆'.repeat(5 - feedback.rating)}
+                        </div>
+                        <div class="feedback-comments">${feedback.comments}</div>
+                        ${feedback.order_id ? `
+                        <div class="feedback-order">
+                            <a href="order-details.html?id=${feedback.order_id}" class="btn btn-sm">View Order</a>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            feedbackContainer.innerHTML = html;
+        }
+
+        // Filter feedback by rating
+        function filterFeedback(rating) {
+            if (!window.allFeedback) return;
+
+            let filteredFeedback;
+
+            if (rating === 'all') {
+                filteredFeedback = window.allFeedback;
+            } else {
+                filteredFeedback = window.allFeedback.filter(feedback =>
+                    feedback.rating === parseInt(rating)
+                );
+            }
+
+            displayFeedback(filteredFeedback);
+        }
+    </script>
+
+    <style>
+        /* Feedback card styles */
+        .feedback-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+            padding: 1rem;
+        }
+
+        .feedback-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .feedback-customer {
+            font-weight: bold;
+        }
+
+        .feedback-date {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .feedback-rating {
+            color: #f8ce0b;
+            font-size: 1.5em;
+            margin-bottom: 0.5rem;
+        }
+
+        .feedback-comments {
+            margin-bottom: 1rem;
+            white-space: pre-line;
+        }
+
+        .feedback-order {
+            text-align: right;
+        }
+
+        .no-feedback {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            color: #666;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 1rem;
+            color: #666;
+        }
+
+        .header-with-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .filter-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+    </style>
+</body>
+</html>

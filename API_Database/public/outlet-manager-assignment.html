@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outlet Manager Assignment - QuickBites</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="admin-dashboard.html">Dashboard</a></li>
+                        <li><a href="user-management.html">Users</a></li>
+                        <li><a href="outlet-management.html">Outlets</a></li>
+                        <li><a href="outlet-manager-assignment.html">Assign Managers</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Outlet Manager Assignment</h1>
+        <p class="mb-4">Assign outlet managers to outlets (one-to-one mapping)</p>
+        <div class="alert alert-info">
+            <strong>Note:</strong> When a new outlet manager registers, they are automatically assigned to an available outlet. You can modify these assignments here.
+        </div>
+
+        <div class="assignment-container">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Current Assignments</h2>
+                        </div>
+                        <div class="card-body">
+                            <div id="current-assignments">
+                                <div class="loading">Loading current assignments...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Create New Assignment</h2>
+                        </div>
+                        <div class="card-body">
+                            <form id="assignment-form">
+                                <div class="form-group">
+                                    <label for="outlet-select">Select Outlet</label>
+                                    <select id="outlet-select" class="form-control" required>
+                                        <option value="">-- Select an outlet --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="manager-select">Select Manager</label>
+                                    <select id="manager-select" class="form-control" required>
+                                        <option value="">-- Select a manager --</option>
+                                    </select>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">Assign Manager</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is an admin
+                const user = await requireAdmin();
+
+                if (user) {
+                    // Load current assignments
+                    loadCurrentAssignments();
+
+                    // Load outlets and managers for dropdowns
+                    loadOutlets();
+                    loadManagers();
+
+                    // Set up form submission
+                    document.getElementById('assignment-form').addEventListener('submit', createAssignment);
+                }
+            } catch (error) {
+                console.error('Error initializing page:', error);
+                showAlert('Error loading page: ' + error.message, 'danger');
+            }
+        });
+
+        // Load current outlet-manager assignments
+        async function loadCurrentAssignments() {
+            try {
+                console.log('Fetching outlet-manager assignments...');
+
+                // Clear the assignments container first to avoid duplicates
+                document.getElementById('current-assignments').innerHTML = '<div class="loading">Loading assignments...</div>';
+
+                // First, get all outlets with assignment information
+                const response = await fetch(`${API_BASE_URL}/api/outlets?include_assignments=true`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include',
+                    // Add cache-busting parameter to prevent caching
+                    cache: 'no-store'
+                });
+
+                console.log('Response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API error response:', errorText);
+                    throw new Error(`Failed to load outlets with assignments: ${response.status} ${errorText}`);
+                }
+
+                const outlets = await response.json();
+                console.log('Outlets with assignments loaded from API:', outlets);
+
+                // Extract assignments from outlets
+                const assignments = [];
+                outlets.forEach(outlet => {
+                    if (outlet.assigned && outlet.manager) {
+                        assignments.push({
+                            outlet_id: outlet.outlet_id,
+                            outlet_name: outlet.name,
+                            member_id: outlet.manager.member_id,
+                            manager_name: outlet.manager.manager_name,
+                            auto_assigned: outlet.manager.auto_assigned || false
+                        });
+                    }
+                });
+
+                console.log('Extracted assignments:', assignments);
+                displayAssignments(assignments);
+            } catch (error) {
+                console.error('Error loading assignments:', error);
+                document.getElementById('current-assignments').innerHTML =
+                    '<div class="alert alert-danger">Error loading assignments: ' + error.message + '</div>';
+
+                // Show no assignments instead of dummy data
+                document.getElementById('current-assignments').innerHTML +=
+                    '<div class="no-data">No assignments found. Please create a new assignment.</div>';
+            }
+        }
+
+        // Display assignments in the UI
+        function displayAssignments(assignments) {
+            const container = document.getElementById('current-assignments');
+
+            if (assignments.length === 0) {
+                container.innerHTML = '<div class="no-data">No assignments found</div>';
+                return;
+            }
+
+            console.log('Displaying assignments:', assignments);
+
+            let html = '<div class="assignment-list">';
+
+            assignments.forEach(assignment => {
+                // Make sure we have the correct property names
+                const outletId = assignment.outlet_id;
+                const outletName = assignment.outlet_name;
+                const managerId = assignment.member_id || 'undefined';
+                const managerName = assignment.manager_name || 'Unknown';
+
+                console.log('Assignment details:', { outletId, outletName, managerId, managerName });
+
+                html += `
+                    <div class="assignment-item">
+                        <div class="assignment-details">
+                            <div class="outlet-info">
+                                <strong>Outlet:</strong> ${outletName} (ID: ${outletId})
+                            </div>
+                            <div class="manager-info">
+                                <strong>Manager:</strong> ${managerName} (Outlet Manager ID: ${managerId})
+                            </div>
+                            <div class="assignment-note">
+                                <small class="text-muted">Assignment created ${assignment.auto_assigned ? 'automatically during registration' : 'manually by admin'}</small>
+                            </div>
+                        </div>
+                        <div class="assignment-actions">
+                            <button class="btn btn-sm btn-danger remove-btn" data-outlet-id="${outletId}" data-manager-id="${managerId}">
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+
+            // Add event listeners to remove buttons
+            const removeButtons = container.querySelectorAll('.remove-btn');
+            removeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const outletId = this.getAttribute('data-outlet-id');
+                    const managerId = this.getAttribute('data-manager-id');
+                    console.log('Remove button clicked:', { outletId, managerId });
+                    removeAssignment(outletId, managerId);
+                });
+            });
+        }
+
+        // Load outlets for dropdown
+        async function loadOutlets() {
+            try {
+                console.log('Fetching outlets...');
+                const response = await fetch(`${API_BASE_URL}/api/outlets?include_assignments=true`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include',
+                    cache: 'no-store'
+                });
+
+                console.log('Outlets response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API error response for outlets:', errorText);
+                    throw new Error(`Failed to load outlets: ${response.status} ${errorText}`);
+                }
+
+                const outlets = await response.json();
+                console.log('Outlets loaded from API:', outlets);
+
+                const outletSelect = document.getElementById('outlet-select');
+
+                // Clear existing options except the first one
+                while (outletSelect.options.length > 1) {
+                    outletSelect.remove(1);
+                }
+
+                // Add outlets to dropdown
+                outlets.forEach(outlet => {
+                    const option = document.createElement('option');
+                    option.value = outlet.outlet_id;
+                    option.textContent = `${outlet.name} (${outlet.location || 'No location'})`;
+
+                    // Disable option if outlet already has a manager
+                    if (outlet.assigned) {
+                        option.disabled = true;
+                        option.textContent += ` - Assigned to ${outlet.manager.manager_name || 'Unknown Manager'}`;
+                    }
+
+                    outletSelect.appendChild(option);
+                });
+
+                if (outlets.length === 0) {
+                    const option = document.createElement('option');
+                    option.disabled = true;
+                    option.textContent = 'No outlets available';
+                    outletSelect.appendChild(option);
+                }
+            } catch (error) {
+                console.error('Error loading outlets:', error);
+                showAlert('Error loading outlets: ' + error.message, 'warning');
+
+                // Clear the dropdown and add a message
+                const outletSelect = document.getElementById('outlet-select');
+                while (outletSelect.options.length > 1) {
+                    outletSelect.remove(1);
+                }
+
+                const option = document.createElement('option');
+                option.disabled = true;
+                option.textContent = 'Error loading outlets';
+                outletSelect.appendChild(option);
+            }
+        }
+
+        // Load managers for dropdown
+        async function loadManagers() {
+            try {
+                console.log('Fetching available managers...');
+                const response = await fetch(`${API_BASE_URL}/api/managers/available`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include',
+                    cache: 'no-store'
+                });
+
+                console.log('Managers response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API error response for managers:', errorText);
+                    throw new Error(`Failed to load managers: ${response.status} ${errorText}`);
+                }
+
+                const managers = await response.json();
+                console.log('Managers loaded from API:', managers);
+
+                const managerSelect = document.getElementById('manager-select');
+
+                // Clear existing options except the first one
+                while (managerSelect.options.length > 1) {
+                    managerSelect.remove(1);
+                }
+
+                // Add managers to dropdown
+                managers.forEach(manager => {
+                    const option = document.createElement('option');
+                    option.value = manager.member_id;
+                    option.textContent = `${manager.username} (${manager.email || 'No email'})`;
+
+                    // Disable option if manager already assigned to an outlet
+                    if (manager.assigned_outlet) {
+                        option.disabled = true;
+                        option.textContent += ` - Assigned to ${manager.assigned_outlet.name}`;
+                    }
+
+                    managerSelect.appendChild(option);
+                });
+
+                if (managers.length === 0) {
+                    const option = document.createElement('option');
+                    option.disabled = true;
+                    option.textContent = 'No managers available';
+                    managerSelect.appendChild(option);
+                }
+            } catch (error) {
+                console.error('Error loading managers:', error);
+                showAlert('Error loading managers: ' + error.message, 'warning');
+
+                // Clear the dropdown and add a message
+                const managerSelect = document.getElementById('manager-select');
+                while (managerSelect.options.length > 1) {
+                    managerSelect.remove(1);
+                }
+
+                const option = document.createElement('option');
+                option.disabled = true;
+                option.textContent = 'Error loading managers';
+                managerSelect.appendChild(option);
+            }
+        }
+
+        // Create a new assignment
+        async function createAssignment(event) {
+            event.preventDefault();
+
+            const outletId = document.getElementById('outlet-select').value;
+            const managerId = document.getElementById('manager-select').value;
+
+            if (!outletId || !managerId) {
+                showAlert('Please select both an outlet and a manager', 'warning');
+                return;
+            }
+
+            try {
+                console.log('Creating assignment:', { outlet_id: outletId, manager_id: managerId });
+                const response = await fetch(`${API_BASE_URL}/api/outlet-manager/assign`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    body: JSON.stringify({
+                        outlet_id: outletId,
+                        manager_id: managerId
+                    }),
+                    credentials: 'include'
+                });
+
+                console.log('Assignment creation response status:', response.status);
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('API error response for assignment creation:', errorData);
+                    throw new Error(errorData.error || 'Failed to create assignment');
+                }
+
+                const result = await response.json();
+                console.log('Assignment created successfully:', result);
+
+                showAlert('Manager assigned to outlet successfully', 'success');
+
+                // Reset form
+                document.getElementById('assignment-form').reset();
+
+                // Reload data
+                loadCurrentAssignments();
+                loadOutlets();
+                loadManagers();
+            } catch (error) {
+                console.error('Error creating assignment:', error);
+                showAlert('Error creating assignment: ' + error.message, 'danger');
+
+                // Reset form
+                document.getElementById('assignment-form').reset();
+            }
+        }
+
+        // Remove an assignment
+        async function removeAssignment(outletId, managerId) {
+            if (!confirm('Are you sure you want to remove this assignment?')) {
+                return;
+            }
+
+            // Convert to numbers to ensure we're sending numeric values
+            const numericOutletId = parseInt(outletId, 10);
+
+            // Check if we have a valid outlet ID
+            if (isNaN(numericOutletId)) {
+                showAlert('Invalid outlet ID', 'danger');
+                console.error('Invalid outlet ID:', { outletId, numericOutletId });
+                return;
+            }
+
+            // Log the manager ID for debugging, but we won't use it for removal
+            console.log('Manager ID from UI:', managerId);
+
+            // We'll only use the outlet ID for removal since it's a one-to-one relationship
+            console.log('Removing assignment for outlet ID:', numericOutletId);
+
+            try {
+                // Now remove the assignment using only the outlet ID
+                const requestBody = {
+                    outlet_id: numericOutletId
+                };
+
+                console.log('Removing assignment with API call:', requestBody);
+                const response = await fetch(`${API_BASE_URL}/api/outlet-manager/unassign`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    body: JSON.stringify(requestBody),
+                    credentials: 'include'
+                });
+
+                console.log('Assignment removal response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API error response for assignment removal:', errorText);
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        throw new Error(errorData.error || 'Failed to remove assignment');
+                    } catch (e) {
+                        throw new Error(`Failed to remove assignment: ${response.status} ${errorText}`);
+                    }
+                }
+
+                const result = await response.json();
+                console.log('Assignment removed successfully:', result);
+
+                showAlert('Assignment removed successfully', 'success');
+
+                // Reload data
+                loadCurrentAssignments();
+                loadOutlets();
+                loadManagers();
+            } catch (error) {
+                console.error('Error removing assignment:', error);
+                showAlert('Error removing assignment: ' + error.message, 'danger');
+            }
+        }
+    </script>
+
+    <style>
+        .assignment-container {
+            margin-top: 2rem;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: -0.5rem;
+        }
+
+        .col-md-6 {
+            flex: 0 0 calc(50% - 1rem);
+            margin: 0.5rem;
+        }
+
+        .card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+        }
+
+        .card-header {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+
+        .card-body {
+            padding: 1rem;
+        }
+
+        .assignment-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .assignment-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+
+        .assignment-item:hover {
+            background-color: #f9f9f9;
+        }
+
+        .outlet-info, .manager-info {
+            margin-bottom: 0.25rem;
+        }
+
+        .assignment-note {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .no-data {
+            padding: 1rem;
+            text-align: center;
+            color: #666;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 1rem;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .col-md-6 {
+                flex: 0 0 100%;
+            }
+        }
+    </style>
+</body>
+</html>

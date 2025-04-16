@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outlet Manager Dashboard - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="outlet-dashboard.html">Dashboard</a></li>
+                        <li><a href="profile.html">My Profile</a></li>
+                        <li><a href="menu-management.html">Menu</a></li>
+                        <li><a href="order-management.html">Orders</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Welcome, <span id="user-name">Manager</span>!</h1>
+        <h2 class="mb-4">Outlet: <span id="outlet-name">Loading...</span></h2>
+
+        <div class="dashboard">
+            <div class="dashboard-card">
+                <h3>My Profile</h3>
+                <p>View and edit your profile information</p>
+                <a href="profile.html" class="btn mt-2">View Profile</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Manage Menu</h3>
+                <p>Add, edit, or remove menu items</p>
+                <a href="menu-management.html" class="btn mt-2">Manage Menu</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Pending Orders</h3>
+                <p>View and process customer orders</p>
+                <a href="order-management.html" class="btn mt-2">View Orders</a>
+                <div class="badge" id="pending-orders-badge">0</div>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Sales Reports</h3>
+                <p>View sales and performance reports</p>
+                <a href="sales-reports.html" class="btn mt-2">View Reports</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Customer Feedback</h3>
+                <p>View feedback from customers</p>
+                <a href="view-feedback.html" class="btn mt-2">View Feedback</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is an outlet manager
+                const user = await requireOutletManager();
+
+                if (user) {
+                    // Update user name
+                    document.getElementById('user-name').textContent = user.username;
+                    
+                    // Fetch outlet information
+                    const response = await fetch(`${API_BASE_URL}/api/outlet/manager/${user.id}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${getCookie('session_token')}`
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    if (response.ok) {
+                        const outletData = await response.json();
+                        document.getElementById('outlet-name').textContent = outletData.name || 'Not Assigned';
+                    } else {
+                        document.getElementById('outlet-name').textContent = 'Not Assigned';
+                    }
+                    
+                    // Fetch pending orders count
+                    const ordersResponse = await fetch(`${API_BASE_URL}/api/orders/pending/count`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${getCookie('session_token')}`
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    if (ordersResponse.ok) {
+                        const ordersData = await ordersResponse.json();
+                        const pendingOrdersBadge = document.getElementById('pending-orders-badge');
+                        pendingOrdersBadge.textContent = ordersData.count;
+                        
+                        if (ordersData.count > 0) {
+                            pendingOrdersBadge.style.display = 'block';
+                        } else {
+                            pendingOrdersBadge.style.display = 'none';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading outlet manager dashboard:', error);
+                showAlert('Error loading dashboard', 'danger');
+            }
+        });
+    </script>
+</body>
+</html>

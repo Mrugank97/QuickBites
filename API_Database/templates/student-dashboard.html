@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="student-dashboard.html">Dashboard</a></li>
+                        <li><a href="profile.html">My Profile</a></li>
+                        <li><a href="order-history.html">My Orders</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Welcome, <span id="user-name">Student</span>!</h1>
+
+        <div class="dashboard">
+            <div class="dashboard-card">
+                <h3>My Profile</h3>
+                <p>View and edit your profile information</p>
+                <a href="profile.html" class="btn mt-2">View Profile</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Place Order</h3>
+                <p>Order food from campus outlets</p>
+                <a href="place-order.html" class="btn mt-2">Order Now</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>My Orders</h3>
+                <p>View your order history and status</p>
+                <a href="order-history.html" class="btn mt-2">View Orders</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Provide Feedback</h3>
+                <p>Rate your food and service experience</p>
+                <a href="feedback.html" class="btn mt-2">Give Feedback</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is a student
+                const user = await requireStudent();
+
+                if (user) {
+                    // Update user name
+                    document.getElementById('user-name').textContent = user.username;
+                }
+            } catch (error) {
+                console.error('Error loading student dashboard:', error);
+                showAlert('Error loading dashboard', 'danger');
+            }
+        });
+    </script>
+</body>
+</html>

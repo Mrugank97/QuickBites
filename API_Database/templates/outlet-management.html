@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outlet Management - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="admin-dashboard.html">Dashboard</a></li>
+                        <li><a href="user-management.html">Users</a></li>
+                        <li><a href="outlet-management.html">Outlets</a></li>
+                        <li><a href="system-reports.html">Reports</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <div class="header-with-actions">
+            <h1 class="mt-4 mb-4">Outlet Management</h1>
+            <button id="add-outlet-btn" class="btn btn-primary">Add New Outlet</button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Location</th>
+                        <th>Manager</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="outlets-table-body">
+                    <tr>
+                        <td colspan="6" class="text-center">Loading outlets...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Add/Edit Outlet Modal -->
+        <div id="outlet-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2 id="modal-title">Add New Outlet</h2>
+                <form id="outlet-form">
+                    <input type="hidden" id="outlet-id">
+                    <div class="form-group">
+                        <label for="outlet-name">Outlet Name</label>
+                        <input type="text" id="outlet-name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="outlet-location">Location</label>
+                        <input type="text" id="outlet-location" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="outlet-manager">Manager</label>
+                        <select id="outlet-manager" class="form-control" required>
+                            <option value="">Select a manager</option>
+                            <!-- Managers will be loaded dynamically -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="outlet-status">Status</label>
+                        <select id="outlet-status" class="form-control" required>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary btn-block">Save Outlet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is authenticated as admin
+                const user = await requireAdmin();
+                
+                if (user) {
+                    // Load outlets
+                    loadOutlets();
+                    
+                    // Set up event listeners
+                    document.getElementById('add-outlet-btn').addEventListener('click', showAddOutletModal);
+                    document.querySelector('#outlet-modal .close').addEventListener('click', closeModal);
+                    document.getElementById('outlet-form').addEventListener('submit', saveOutlet);
+                }
+            } catch (error) {
+                console.error('Error initializing outlet management page:', error);
+                showAlert('Error loading outlet management page: ' + error.message, 'danger');
+            }
+        });
+        
+        // Load outlets
+        async function loadOutlets() {
+            try {
+                const tableBody = document.getElementById('outlets-table-body');
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Loading outlets...</td></tr>';
+                
+                // This is a placeholder - in a real implementation, you would fetch from an API
+                // For now, we'll simulate with dummy data
+                setTimeout(() => {
+                    // Dummy outlet data
+                    const outlets = [
+                        {
+                            outlet_id: 1,
+                            name: 'Dawat',
+                            location: 'Academic Area',
+                            manager_name: 'Rahul Sharma',
+                            manager_id: 2001,
+                            status: 'Active'
+                        },
+                        {
+                            outlet_id: 2,
+                            name: 'Just Chill',
+                            location: 'Near Library',
+                            manager_name: 'Priya Patel',
+                            manager_id: 2002,
+                            status: 'Active'
+                        },
+                        {
+                            outlet_id: 3,
+                            name: 'Tea Post',
+                            location: 'Near Hostel Complex',
+                            manager_name: 'Amit Kumar',
+                            manager_id: 2003,
+                            status: 'Active'
+                        },
+                        {
+                            outlet_id: 4,
+                            name: 'AS FastFood',
+                            location: 'Academic Block',
+                            manager_name: 'Sneha Gupta',
+                            manager_id: 2004,
+                            status: 'Active'
+                        },
+                        {
+                            outlet_id: 5,
+                            name: 'VS Fastfood',
+                            location: 'Near Sports Complex',
+                            manager_name: 'Vikram Singh',
+                            manager_id: 2005,
+                            status: 'Active'
+                        },
+                        {
+                            outlet_id: 6,
+                            name: 'Madurai Chaat & More',
+                            location: 'Near Main Gate',
+                            manager_name: 'Ananya Reddy',
+                            manager_id: 2006,
+                            status: 'Active'
+                        }
+                    ];
+                    
+                    // Display outlets
+                    displayOutlets(outlets);
+                    
+                    // Load managers for the dropdown
+                    loadManagers();
+                }, 1000);
+                
+                // Actual implementation would be something like:
+                /*
+                const response = await fetch(`${API_BASE_URL}/api/outlets`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load outlets');
+                }
+                
+                const outlets = await response.json();
+                displayOutlets(outlets);
+                
+                // Load managers for the dropdown
+                loadManagers();
+                */
+            } catch (error) {
+                console.error('Error loading outlets:', error);
+                document.getElementById('outlets-table-body').innerHTML = 
+                    '<tr><td colspan="6" class="text-center text-danger">Error loading outlets: ' + error.message + '</td></tr>';
+            }
+        }
+        
+        // Display outlets in the table
+        function displayOutlets(outlets) {
+            const tableBody = document.getElementById('outlets-table-body');
+            
+            if (outlets.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No outlets found</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            
+            outlets.forEach(outlet => {
+                const statusClass = outlet.status === 'Active' ? 'text-success' : 'text-danger';
+                
+                html += `
+                    <tr>
+                        <td>${outlet.outlet_id}</td>
+                        <td>${outlet.name}</td>
+                        <td>${outlet.location}</td>
+                        <td>${outlet.manager_name}</td>
+                        <td class="${statusClass}">${outlet.status}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary edit-outlet" data-id="${outlet.outlet_id}">Edit</button>
+                            <button class="btn btn-sm btn-danger delete-outlet" data-id="${outlet.outlet_id}">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tableBody.innerHTML = html;
+            
+            // Add event listeners to edit and delete buttons
+            document.querySelectorAll('.edit-outlet').forEach(button => {
+                button.addEventListener('click', function() {
+                    const outletId = this.getAttribute('data-id');
+                    editOutlet(outletId);
+                });
+            });
+            
+            document.querySelectorAll('.delete-outlet').forEach(button => {
+                button.addEventListener('click', function() {
+                    const outletId = this.getAttribute('data-id');
+                    deleteOutlet(outletId);
+                });
+            });
+        }
+        
+        // Load managers for the dropdown
+        function loadManagers() {
+            try {
+                const managerSelect = document.getElementById('outlet-manager');
+                
+                // This is a placeholder - in a real implementation, you would fetch from an API
+                // For now, we'll simulate with dummy data
+                const managers = [
+                    { member_id: 2001, name: 'Rahul Sharma' },
+                    { member_id: 2002, name: 'Priya Patel' },
+                    { member_id: 2003, name: 'Amit Kumar' },
+                    { member_id: 2004, name: 'Sneha Gupta' },
+                    { member_id: 2005, name: 'Vikram Singh' },
+                    { member_id: 2006, name: 'Ananya Reddy' }
+                ];
+                
+                // Clear existing options except the first one
+                while (managerSelect.options.length > 1) {
+                    managerSelect.remove(1);
+                }
+                
+                // Add managers to the dropdown
+                managers.forEach(manager => {
+                    const option = document.createElement('option');
+                    option.value = manager.member_id;
+                    option.textContent = manager.name;
+                    managerSelect.appendChild(option);
+                });
+                
+                // Actual implementation would be something like:
+                /*
+                const response = await fetch(`${API_BASE_URL}/api/members?role=outletmanager`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load managers');
+                }
+                
+                const managers = await response.json();
+                
+                // Clear existing options except the first one
+                while (managerSelect.options.length > 1) {
+                    managerSelect.remove(1);
+                }
+                
+                // Add managers to the dropdown
+                managers.forEach(manager => {
+                    const option = document.createElement('option');
+                    option.value = manager.member_id;
+                    option.textContent = manager.username;
+                    managerSelect.appendChild(option);
+                });
+                */
+            } catch (error) {
+                console.error('Error loading managers:', error);
+                showAlert('Error loading managers: ' + error.message, 'warning');
+            }
+        }
+        
+        // Show modal to add a new outlet
+        function showAddOutletModal() {
+            document.getElementById('modal-title').textContent = 'Add New Outlet';
+            document.getElementById('outlet-id').value = '';
+            document.getElementById('outlet-form').reset();
+            document.getElementById('outlet-modal').style.display = 'block';
+        }
+        
+        // Edit an outlet
+        function editOutlet(outletId) {
+            // This is a placeholder - in a real implementation, you would fetch the outlet data from an API
+            // For now, we'll simulate with dummy data
+            const outlets = [
+                {
+                    outlet_id: 1,
+                    name: 'Dawat',
+                    location: 'Academic Area',
+                    manager_id: 2001,
+                    status: 'Active'
+                },
+                {
+                    outlet_id: 2,
+                    name: 'Just Chill',
+                    location: 'Near Library',
+                    manager_id: 2002,
+                    status: 'Active'
+                }
+            ];
+            
+            const outlet = outlets.find(o => o.outlet_id == outletId);
+            
+            if (outlet) {
+                document.getElementById('modal-title').textContent = 'Edit Outlet';
+                document.getElementById('outlet-id').value = outlet.outlet_id;
+                document.getElementById('outlet-name').value = outlet.name;
+                document.getElementById('outlet-location').value = outlet.location;
+                document.getElementById('outlet-manager').value = outlet.manager_id;
+                document.getElementById('outlet-status').value = outlet.status;
+                document.getElementById('outlet-modal').style.display = 'block';
+            } else {
+                showAlert('Outlet not found', 'danger');
+            }
+            
+            // Actual implementation would be something like:
+            /*
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/outlets/${outletId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load outlet details');
+                }
+                
+                const outlet = await response.json();
+                
+                document.getElementById('modal-title').textContent = 'Edit Outlet';
+                document.getElementById('outlet-id').value = outlet.outlet_id;
+                document.getElementById('outlet-name').value = outlet.name;
+                document.getElementById('outlet-location').value = outlet.location;
+                document.getElementById('outlet-manager').value = outlet.manager_id;
+                document.getElementById('outlet-status').value = outlet.status;
+                document.getElementById('outlet-modal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading outlet details:', error);
+                showAlert('Error loading outlet details: ' + error.message, 'danger');
+            }
+            */
+        }
+        
+        // Delete an outlet
+        function deleteOutlet(outletId) {
+            if (confirm('Are you sure you want to delete this outlet?')) {
+                // This is a placeholder - in a real implementation, you would call an API
+                // For now, we'll simulate success
+                showAlert('Outlet deleted successfully', 'success');
+                loadOutlets();
+                
+                // Actual implementation would be something like:
+                /*
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/outlets/${outletId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${getCookie('session_token')}`
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to delete outlet');
+                    }
+                    
+                    showAlert('Outlet deleted successfully', 'success');
+                    loadOutlets();
+                } catch (error) {
+                    console.error('Error deleting outlet:', error);
+                    showAlert('Error deleting outlet: ' + error.message, 'danger');
+                }
+                */
+            }
+        }
+        
+        // Save outlet (add or update)
+        async function saveOutlet(event) {
+            event.preventDefault();
+            
+            const outletId = document.getElementById('outlet-id').value;
+            const name = document.getElementById('outlet-name').value;
+            const location = document.getElementById('outlet-location').value;
+            const managerId = document.getElementById('outlet-manager').value;
+            const status = document.getElementById('outlet-status').value;
+            
+            if (!name || !location || !managerId) {
+                showAlert('Please fill in all required fields', 'warning');
+                return;
+            }
+            
+            // This is a placeholder - in a real implementation, you would call an API
+            // For now, we'll simulate success
+            showAlert(`Outlet ${outletId ? 'updated' : 'added'} successfully`, 'success');
+            closeModal();
+            loadOutlets();
+            
+            // Actual implementation would be something like:
+            /*
+            try {
+                const method = outletId ? 'PUT' : 'POST';
+                const url = outletId ? `${API_BASE_URL}/api/outlets/${outletId}` : `${API_BASE_URL}/api/outlets`;
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        location: location,
+                        manager_id: managerId,
+                        status: status
+                    }),
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to save outlet');
+                }
+                
+                showAlert(`Outlet ${outletId ? 'updated' : 'added'} successfully`, 'success');
+                closeModal();
+                loadOutlets();
+            } catch (error) {
+                console.error('Error saving outlet:', error);
+                showAlert('Error saving outlet: ' + error.message, 'danger');
+            }
+            */
+        }
+        
+        // Close the modal
+        function closeModal() {
+            document.getElementById('outlet-modal').style.display = 'none';
+        }
+    </script>
+    
+    <style>
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #000;
+        }
+        
+        .header-with-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+    </style>
+</body>
+</html>

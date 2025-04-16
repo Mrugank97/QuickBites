@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="admin-dashboard.html">Dashboard</a></li>
+                        <li><a href="profile.html">My Profile</a></li>
+                        <li><a href="user-management.html">Users</a></li>
+                        <li><a href="outlet-management.html">Outlets</a></li>
+                        <li><a href="outlet-manager-assignment.html">Assign Managers</a></li>
+                        <li><a href="system-logs.html">Logs</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Welcome, <span id="user-name">Admin</span>!</h1>
+        <h2 class="mb-4">Access Level: <span id="access-level">Loading...</span></h2>
+
+        <div class="dashboard">
+            <div class="dashboard-card">
+                <h3>My Profile</h3>
+                <p>View and edit your profile information</p>
+                <a href="profile.html" class="btn mt-2">View Profile</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>User Management</h3>
+                <p>Add, edit, or remove users</p>
+                <a href="user-management.html" class="btn mt-2">Manage Users</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Outlet Management</h3>
+                <p>Manage food outlets and their details</p>
+                <a href="outlet-management.html" class="btn mt-2">Manage Outlets</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Manager Assignment</h3>
+                <p>Assign outlet managers to outlets (one-to-one)</p>
+                <a href="outlet-manager-assignment.html" class="btn mt-2">Assign Managers</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>System Reports</h3>
+                <p>View system-wide reports and analytics</p>
+                <a href="system-reports.html" class="btn mt-2">View Reports</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>System Logs</h3>
+                <p>View system logs and audit trails</p>
+                <a href="system-logs.html" class="btn mt-2">View Logs</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is an admin
+                const user = await requireAdmin();
+
+                if (user) {
+                    // Update user name
+                    document.getElementById('user-name').textContent = user.username;
+
+                    // Fetch admin information
+                    const response = await fetch(`${API_BASE_URL}/api/admin/${user.id}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${getCookie('session_token')}`
+                        },
+                        credentials: 'include'
+                    });
+
+                    if (response.ok) {
+                        const adminData = await response.json();
+                        document.getElementById('access-level').textContent = adminData.access_level || 'Standard';
+                    } else {
+                        document.getElementById('access-level').textContent = 'Standard';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading admin dashboard:', error);
+                showAlert('Error loading dashboard', 'danger');
+            }
+        });
+    </script>
+</body>
+</html>

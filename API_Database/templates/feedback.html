@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="student-dashboard.html">Dashboard</a></li>
+                        <li><a href="profile.html">My Profile</a></li>
+                        <li><a href="order-history.html">My Orders</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Provide Feedback</h1>
+
+        <div class="form-container">
+            <form id="feedback-form">
+                <div class="form-group">
+                    <label for="outlet">Outlet</label>
+                    <select id="outlet" class="form-control" required>
+                        <option value="">Select an outlet</option>
+                        <!-- Outlets will be loaded dynamically -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="order">Order (Optional)</label>
+                    <select id="order" class="form-control">
+                        <option value="">Select an order (optional)</option>
+                        <!-- Orders will be loaded dynamically -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="rating">Rating</label>
+                    <div class="rating-container">
+                        <div class="rating">
+                            <input type="radio" id="star5" name="rating" value="5" required />
+                            <label for="star5" title="5 stars">★</label>
+                            <input type="radio" id="star4" name="rating" value="4" />
+                            <label for="star4" title="4 stars">★</label>
+                            <input type="radio" id="star3" name="rating" value="3" />
+                            <label for="star3" title="3 stars">★</label>
+                            <input type="radio" id="star2" name="rating" value="2" />
+                            <label for="star2" title="2 stars">★</label>
+                            <input type="radio" id="star1" name="rating" value="1" />
+                            <label for="star1" title="1 star">★</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="comments">Comments</label>
+                    <textarea id="comments" class="form-control" rows="5" required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary btn-block">Submit Feedback</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="mt-4">
+            <h2>My Previous Feedback</h2>
+            <div id="previous-feedback">
+                <!-- Previous feedback will be loaded here -->
+                <div class="loading">Loading your feedback...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        // Log API_BASE_URL for debugging
+        console.log('API_BASE_URL in feedback.html:', API_BASE_URL);
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is authenticated
+                const user = await checkAuth();
+
+                if (user) {
+                    // Get member_id from user data - try all possible properties
+                    const memberId = user.member_id || user.ID || user.id || user.session_id;
+                    console.log('Using member ID:', memberId);
+
+                    if (!memberId) {
+                        console.error('Could not determine member ID from user data:', user);
+                        showAlert('Error: Could not determine your member ID. Please try logging out and back in.', 'danger');
+                        return;
+                    }
+
+                    // Load outlets
+                    loadOutlets();
+
+                    // Load user's orders for the dropdown
+                    loadUserOrders(memberId);
+
+                    // Load previous feedback
+                    loadPreviousFeedback(memberId);
+
+                    // Set up form submission
+                    document.getElementById('feedback-form').addEventListener('submit', function(event) {
+                        event.preventDefault();
+                        submitFeedback(memberId);
+                    });
+
+                    // When outlet changes, load orders for that outlet
+                    document.getElementById('outlet').addEventListener('change', function() {
+                        const outletId = this.value;
+                        if (outletId) {
+                            filterOrdersByOutlet(memberId, outletId);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error initializing feedback page:', error);
+                showAlert('Error loading feedback page: ' + error.message, 'danger');
+            }
+        });
+
+        // Load all outlets
+        async function loadOutlets() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/outlets`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load outlets');
+                }
+
+                const outlets = await response.json();
+                const outletSelect = document.getElementById('outlet');
+
+                outlets.forEach(outlet => {
+                    const option = document.createElement('option');
+                    option.value = outlet.outlet_id;
+                    option.textContent = outlet.name;
+                    outletSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading outlets:', error);
+                showAlert('Error loading outlets: ' + error.message, 'warning');
+            }
+        }
+
+        // Load user's orders
+        async function loadUserOrders(memberId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/orders/member/${memberId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`,
+                        'Cache-Control': 'no-cache'
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load orders');
+                }
+
+                const orders = await response.json();
+                window.userOrders = orders; // Store for filtering
+
+                populateOrdersDropdown(orders);
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                showAlert('Error loading your orders: ' + error.message, 'warning');
+            }
+        }
+
+        // Populate orders dropdown
+        function populateOrdersDropdown(orders) {
+            const orderSelect = document.getElementById('order');
+
+            // Clear existing options except the first one
+            while (orderSelect.options.length > 1) {
+                orderSelect.remove(1);
+            }
+
+            // Sort orders by date (newest first)
+            orders.sort((a, b) => new Date(b.order_time) - new Date(a.order_time));
+
+            orders.forEach(order => {
+                const option = document.createElement('option');
+                option.value = order.order_id;
+                const date = new Date(order.order_time).toLocaleDateString();
+                option.textContent = `Order #${order.order_id} - ${order.outlet_name} (${date})`;
+                orderSelect.appendChild(option);
+            });
+        }
+
+        // Filter orders by outlet
+        function filterOrdersByOutlet(memberId, outletId) {
+            if (!window.userOrders) {
+                loadUserOrders(memberId);
+                return;
+            }
+
+            const filteredOrders = window.userOrders.filter(order => order.outlet_id == outletId);
+            populateOrdersDropdown(filteredOrders);
+        }
+
+        // Load previous feedback
+        async function loadPreviousFeedback(memberId) {
+            try {
+                const feedbackContainer = document.getElementById('previous-feedback');
+                feedbackContainer.innerHTML = '<div class="loading">Loading your feedback...</div>';
+
+                // Get token from multiple sources
+                let token = getCookie('session_token');
+                if (!token) {
+                    token = sessionStorage.getItem('session_token');
+                }
+                if (!token) {
+                    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                    token = storedUser.token;
+                }
+
+                console.log('Using token for loading feedback:', token ? 'Found' : 'Not found');
+
+                // Add cache-busting parameter
+                const timestamp = new Date().getTime();
+
+                // Fetch feedback from API
+                const response = await fetch(`${API_BASE_URL}/api/feedback/member/${memberId}?_=${timestamp}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : '',
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    },
+                    credentials: 'include'
+                });
+
+                console.log('Feedback API response status:', response.status);
+
+                if (!response.ok) {
+                    // Try to get more detailed error information
+                    try {
+                        const errorData = await response.json();
+                        console.error('API error response:', errorData);
+                        throw new Error(errorData.error || `Failed to load feedback: ${response.status} ${response.statusText}`);
+                    } catch (jsonError) {
+                        // If the response is not valid JSON
+                        const errorText = await response.text();
+                        console.error('API error response (text):', errorText);
+                        throw new Error(`Failed to load feedback: ${response.status} ${response.statusText}`);
+                    }
+                }
+
+                const feedbackList = await response.json();
+                console.log('Loaded feedback:', feedbackList);
+
+                if (!feedbackList || feedbackList.length === 0) {
+                    feedbackContainer.innerHTML = '<div class="no-feedback">You have not provided any feedback yet.</div>';
+                    return;
+                }
+
+                let html = '';
+                feedbackList.forEach(feedback => {
+                    const date = new Date(feedback.feedback_time).toLocaleDateString();
+                    html += `
+                        <div class="feedback-card">
+                            <div class="feedback-header">
+                                <div class="feedback-outlet">${feedback.outlet_name || 'Unknown Outlet'}</div>
+                                <div class="feedback-date">${date}</div>
+                            </div>
+                            <div class="feedback-body">
+                                <div class="feedback-rating">
+                                    ${'★'.repeat(feedback.rating)}${'☆'.repeat(5 - feedback.rating)}
+                                </div>
+                                <div class="feedback-comments">${feedback.comments}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                feedbackContainer.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading previous feedback:', error);
+                document.getElementById('previous-feedback').innerHTML =
+                    '<div class="error">Error loading your previous feedback. Please try again later.</div>';
+            }
+        }
+
+        // Submit feedback
+        async function submitFeedback(memberId) {
+            try {
+                const outletId = document.getElementById('outlet').value;
+                const orderId = document.getElementById('order').value;
+                const ratingInput = document.querySelector('input[name="rating"]:checked');
+                const rating = ratingInput ? ratingInput.value : null;
+                const comments = document.getElementById('comments').value;
+
+                if (!outletId) {
+                    showAlert('Please select an outlet', 'warning');
+                    return;
+                }
+
+                if (!rating) {
+                    showAlert('Please provide a rating', 'warning');
+                    return;
+                }
+
+                if (!comments) {
+                    showAlert('Please provide comments', 'warning');
+                    return;
+                }
+
+                // Show loading state
+                const submitBtn = document.querySelector('#feedback-form button[type="submit"]');
+                const originalBtnText = submitBtn.textContent;
+                submitBtn.textContent = 'Submitting...';
+                submitBtn.disabled = true;
+
+                // Get token from multiple sources
+                let token = getCookie('session_token');
+                if (!token) {
+                    token = sessionStorage.getItem('session_token');
+                }
+                if (!token) {
+                    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                    token = storedUser.token;
+                }
+
+                console.log('Using token for feedback submission:', token ? 'Found' : 'Not found');
+
+                // Prepare feedback data
+                const feedbackData = {
+                    member_id: memberId,
+                    outlet_id: parseInt(outletId),
+                    order_id: orderId ? parseInt(orderId) : null,
+                    rating: parseInt(rating),
+                    comments: comments
+                };
+
+                console.log('Submitting feedback data:', feedbackData);
+
+                // Submit feedback to API
+                console.log('API_BASE_URL:', API_BASE_URL);
+                const response = await fetch(`${API_BASE_URL}/api/feedback`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : '',
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    },
+                    body: JSON.stringify(feedbackData),
+                    credentials: 'include'
+                });
+
+                console.log('Feedback API response status:', response.status);
+
+                // For debugging - log the full request
+                console.log('Feedback API request URL:', `${API_BASE_URL}/api/feedback`);
+                console.log('Feedback API request headers:', {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token.substring(0, 10)}...` : 'Not provided',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                });
+                console.log('Feedback API request body:', JSON.stringify(feedbackData));
+
+                // Reset button
+                submitBtn.textContent = originalBtnText;
+                submitBtn.disabled = false;
+
+                if (!response.ok) {
+                    // Try to get more detailed error information
+                    try {
+                        const errorData = await response.json();
+                        console.error('API error response:', errorData);
+                        throw new Error(errorData.error || `Failed to submit feedback: ${response.status} ${response.statusText}`);
+                    } catch (jsonError) {
+                        // If the response is not valid JSON
+                        const errorText = await response.text();
+                        console.error('API error response (text):', errorText);
+                        throw new Error(`Failed to submit feedback: ${response.status} ${response.statusText}`);
+                    }
+                }
+
+                const result = await response.json();
+                console.log('Feedback submitted successfully:', result);
+
+                showAlert('Thank you for your feedback!', 'success');
+
+                // Reset form
+                document.getElementById('feedback-form').reset();
+
+                // Reload previous feedback
+                loadPreviousFeedback(memberId);
+            } catch (error) {
+                console.error('Error submitting feedback:', error);
+                showAlert('Error submitting feedback: ' + error.message, 'danger');
+
+                // Reset button
+                const submitBtn = document.querySelector('#feedback-form button[type="submit"]');
+                submitBtn.textContent = 'Submit Feedback';
+                submitBtn.disabled = false;
+            }
+        }
+    </script>
+
+    <style>
+        /* Star rating styles */
+        .rating-container {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+        }
+
+        .rating {
+            display: flex;
+            flex-direction: row-reverse;
+            font-size: 2em;
+        }
+
+        .rating input {
+            display: none;
+        }
+
+        .rating label {
+            color: #ddd;
+            cursor: pointer;
+            padding: 0 0.1em;
+        }
+
+        .rating input:checked ~ label,
+        .rating label:hover,
+        .rating label:hover ~ label {
+            color: #f8ce0b;
+            transition: 0.2s;
+        }
+
+        /* Feedback card styles */
+        .feedback-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+            padding: 1rem;
+        }
+
+        .feedback-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .feedback-outlet {
+            font-weight: bold;
+        }
+
+        .feedback-date {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .feedback-rating {
+            color: #f8ce0b;
+            font-size: 1.5em;
+            margin-bottom: 0.5rem;
+        }
+
+        .feedback-comments {
+            white-space: pre-line;
+        }
+
+        .no-feedback {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            color: #666;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 1rem;
+            color: #666;
+        }
+    </style>
+</body>
+</html>

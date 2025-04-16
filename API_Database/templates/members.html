@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Group Members - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="dashboard.html">Dashboard</a></li>
+                        <li><a href="profile.html">My Profile</a></li>
+                        <li><a href="#" id="admin-link" style="display: none;">Admin</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Group 11 Members</h1>
+
+        <div id="members-list-container">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        // Base URL for API endpoints
+        const API_BASE_URL = window.location.origin; // Use the same origin as the current page
+
+        // Function to load group members
+        async function loadGroupMembers() {
+            try {
+                // Get token from sessionStorage or localStorage as backup
+                let token = sessionStorage.getItem('session_token');
+                if (!token) {
+                    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                    token = storedUser.token;
+                }
+
+                // Prepare headers
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+
+                // Add token to headers if available
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+
+                const response = await fetch(`${API_BASE_URL}/members?group=11`, {
+                    method: 'GET',
+                    headers: headers,
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to load members');
+                }
+
+                const data = await response.json();
+                displayGroupMembers(data);
+
+            } catch (error) {
+                console.error('Error loading members:', error);
+                document.getElementById('members-list-container').innerHTML = `
+                    <div class="alert alert-danger">
+                        Error loading members: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Function to display group members
+        function displayGroupMembers(members) {
+            const container = document.getElementById('members-list-container');
+
+            if (!members || members.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">No members found in Group 11</div>';
+                return;
+            }
+
+            let html = '<div class="dashboard">';
+
+            members.forEach(member => {
+                html += `
+                    <div class="dashboard-card">
+                        <h3>${member.username}</h3>
+                        <p>${member.email || 'No email'}</p>
+                        <p>Role: ${member.role || 'Member'}</p>
+                        <a href="profile.html?id=${member.member_id}" class="btn mt-2">View Profile</a>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is authenticated
+                const user = await checkAuth();
+
+                if (user) {
+                    // Show admin link if user is admin
+                    if (user.role === 'admin') {
+                        const adminLink = document.getElementById('admin-link');
+                        adminLink.style.display = 'inline';
+                        adminLink.href = 'admin-dashboard.html';
+                    }
+
+                    // Load group members
+                    loadGroupMembers();
+                }
+            } catch (error) {
+                console.error('Error initializing page:', error);
+                showAlert('Error loading page', 'danger');
+            }
+        });
+    </script>
+</body>
+</html>

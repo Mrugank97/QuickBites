@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Place Order - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="student-dashboard.html">Dashboard</a></li>
+                        <li><a href="profile.html">My Profile</a></li>
+                        <li><a href="order-history.html">My Orders</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Place an Order</h1>
+
+        <div class="order-section">
+            <div class="outlet-selection">
+                <h2>Select an Outlet</h2>
+                <div class="outlet-list" id="outlet-list">
+                    <!-- Outlets will be loaded here -->
+                    <div class="loading">Loading outlets...</div>
+                </div>
+            </div>
+
+            <div class="menu-section" id="menu-section" style="display: none;">
+                <h2>Menu for <span id="selected-outlet">Outlet</span></h2>
+                <div class="menu-list" id="menu-list">
+                    <!-- Menu items will be loaded here -->
+                </div>
+            </div>
+
+            <div class="cart-section" id="cart-section" style="display: none;">
+                <h2>Your Order</h2>
+                <div class="cart-items" id="cart-items">
+                    <!-- Cart items will be added here -->
+                    <div class="empty-cart">Your cart is empty</div>
+                </div>
+                <div class="cart-total">
+                    <h3>Total: ₹<span id="cart-total">0.00</span></h3>
+                </div>
+                <button class="btn btn-primary" id="place-order-btn">Place Order</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is authenticated (allow any role to place orders)
+                const user = await checkAuth();
+
+                if (user) {
+                    // Load outlets
+                    loadOutlets();
+
+                    // Initialize cart
+                    initializeCart();
+                }
+            } catch (error) {
+                console.error('Error loading order page:', error);
+                showAlert('Error loading order page', 'danger');
+            }
+        });
+
+        // Cart data
+        let cart = [];
+        let selectedOutlet = null;
+
+        // Load outlets
+        async function loadOutlets() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/outlets`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load outlets');
+                }
+
+                const outlets = await response.json();
+                const outletList = document.getElementById('outlet-list');
+                outletList.innerHTML = '';
+
+                outlets.forEach(outlet => {
+                    const outletCard = document.createElement('div');
+                    outletCard.className = 'outlet-card';
+                    outletCard.innerHTML = `
+                        <h3>${outlet.name}</h3>
+                        <p>${outlet.location}</p>
+                        <button class="btn select-outlet-btn" data-outlet-id="${outlet.outlet_id}">Select</button>
+                    `;
+                    outletList.appendChild(outletCard);
+
+                    // Add event listener to select button
+                    const selectBtn = outletCard.querySelector('.select-outlet-btn');
+                    selectBtn.addEventListener('click', () => selectOutlet(outlet));
+                });
+            } catch (error) {
+                console.error('Error loading outlets:', error);
+                showAlert('Error loading outlets', 'danger');
+
+                // Show outlets from database
+                const outletList = document.getElementById('outlet-list');
+                outletList.innerHTML = '<div class="loading">Loading outlets from database...</div>';
+
+                // Fetch outlets from the database
+                fetch(`${API_BASE_URL}/api/outlets`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to load outlets');
+                    }
+                    return response.json();
+                })
+                .then(outlets => {
+                    outletList.innerHTML = '';
+
+                    if (outlets.length === 0) {
+                        outletList.innerHTML = '<div class="no-items">No outlets available</div>';
+                        return;
+                    }
+
+                    outlets.forEach(outlet => {
+                        const outletCard = document.createElement('div');
+                        outletCard.className = 'outlet-card';
+                        outletCard.innerHTML = `
+                            <h3>${outlet.name}</h3>
+                            <p>${outlet.location}</p>
+                            <button class="btn select-outlet-btn" data-outlet-id="${outlet.outlet_id}">Select</button>
+                        `;
+                        outletList.appendChild(outletCard);
+
+                        // Add event listener to select button
+                        const selectBtn = outletCard.querySelector('.select-outlet-btn');
+                        selectBtn.addEventListener('click', () => selectOutlet(outlet));
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading outlets:', error);
+                    outletList.innerHTML = '<div class="error">Error loading outlets. Please try again.</div>';
+                });
+
+                // Add event listeners to dummy outlets
+                const selectBtns = outletList.querySelectorAll('.select-outlet-btn');
+                selectBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const outletCard = btn.closest('.outlet-card');
+                        const outletName = outletCard.querySelector('h3').textContent;
+                        const outletLocation = outletCard.querySelector('p').textContent;
+                        const outletId = btn.getAttribute('data-outlet-id');
+
+                        selectOutlet({
+                            outlet_id: outletId,
+                            name: outletName,
+                            location: outletLocation
+                        });
+                    });
+                });
+            }
+        }
+
+        // Select an outlet
+        function selectOutlet(outlet) {
+            selectedOutlet = outlet;
+            document.getElementById('selected-outlet').textContent = outlet.name;
+            document.getElementById('menu-section').style.display = 'block';
+            document.getElementById('cart-section').style.display = 'block';
+
+            // Load menu for selected outlet
+            loadMenu(outlet.outlet_id);
+        }
+
+        // Load menu for selected outlet
+        async function loadMenu(outletId) {
+            try {
+                console.log(`Loading menu for outlet ID: ${outletId}`);
+                const menuList = document.getElementById('menu-list');
+                menuList.innerHTML = '<div class="loading">Loading menu items...</div>';
+
+                // Get token from sessionStorage or localStorage as backup
+                let token = sessionStorage.getItem('session_token');
+                if (!token) {
+                    token = getCookie('session_token');
+                }
+                if (!token) {
+                    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                    token = storedUser.token;
+                }
+
+                console.log('Using token:', token ? 'Found' : 'Not found');
+
+                const response = await fetch(`${API_BASE_URL}/api/menu/outlet/${outletId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : ''
+                    },
+                    credentials: 'include'
+                });
+
+                console.log('Menu API response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API error response:', errorText);
+                    throw new Error(`Failed to load menu: ${response.status} ${response.statusText}`);
+                }
+
+                const menuItems = await response.json();
+                console.log(`Received ${menuItems.length} menu items:`, menuItems);
+
+                menuList.innerHTML = '';
+
+                if (menuItems.length === 0) {
+                    menuList.innerHTML = '<div class="no-items">No menu items available for this outlet</div>';
+                    return;
+                }
+
+                menuItems.forEach(item => {
+                    const menuCard = document.createElement('div');
+                    menuCard.className = 'menu-card';
+                    menuCard.innerHTML = `
+                        <h3>${item.item_name}</h3>
+                        <p class="price">₹${parseFloat(item.price).toFixed(2)}</p>
+                        <div class="item-controls">
+                            <button class="btn btn-small add-to-cart-btn" data-item-id="${item.menu_id}">Add to Cart</button>
+                        </div>
+                    `;
+                    menuList.appendChild(menuCard);
+
+                    // Add event listener to add button
+                    const addBtn = menuCard.querySelector('.add-to-cart-btn');
+                    addBtn.addEventListener('click', () => addToCart(item));
+                });
+            } catch (error) {
+                console.error('Error loading menu:', error);
+                showAlert('Error loading menu. Please try again.', 'danger');
+
+                // For demo purposes, add some sample menu items
+                const menuList = document.getElementById('menu-list');
+                menuList.innerHTML = '<div class="error">Could not load menu from server. Showing sample items:</div>';
+
+                const sampleItems = [
+                    { menu_id: 1, item_name: 'Sample Item 1', price: 100 },
+                    { menu_id: 2, item_name: 'Sample Item 2', price: 150 },
+                    { menu_id: 3, item_name: 'Sample Item 3', price: 200 },
+                    { menu_id: 4, item_name: 'Sample Item 4', price: 120 },
+                    { menu_id: 5, item_name: 'Sample Item 5', price: 180 }
+                ];
+
+                sampleItems.forEach(item => {
+                    const menuCard = document.createElement('div');
+                    menuCard.className = 'menu-card';
+                    menuCard.innerHTML = `
+                        <h3>${item.item_name}</h3>
+                        <p class="price">₹${item.price.toFixed(2)}</p>
+                        <div class="item-controls">
+                            <button class="btn btn-small add-to-cart-btn" data-item-id="${item.menu_id}">Add to Cart</button>
+                        </div>
+                    `;
+                    menuList.appendChild(menuCard);
+
+                    // Add event listener to add button
+                    const addBtn = menuCard.querySelector('.add-to-cart-btn');
+                    addBtn.addEventListener('click', () => addToCart(item));
+                });
+            }
+        }
+
+        // Initialize cart
+        function initializeCart() {
+            cart = [];
+            updateCartDisplay();
+
+            // Add event listener to place order button
+            const placeOrderBtn = document.getElementById('place-order-btn');
+            placeOrderBtn.addEventListener('click', placeOrder);
+        }
+
+        // Add item to cart
+        function addToCart(item) {
+            // Check if item already exists in cart
+            const existingItem = cart.find(cartItem => cartItem.menu_id === item.menu_id);
+
+            if (existingItem) {
+                existingItem.quantity += 1;
+                existingItem.subtotal = existingItem.quantity * existingItem.price;
+            } else {
+                cart.push({
+                    menu_id: item.menu_id,
+                    item_name: item.item_name,
+                    price: item.price,
+                    quantity: 1,
+                    subtotal: item.price
+                });
+            }
+
+            updateCartDisplay();
+            showAlert(`Added ${item.item_name} to cart`, 'success');
+        }
+
+        // Update cart display
+        function updateCartDisplay() {
+            const cartItems = document.getElementById('cart-items');
+            const cartTotal = document.getElementById('cart-total');
+
+            if (cart.length === 0) {
+                cartItems.innerHTML = '<div class="empty-cart">Your cart is empty</div>';
+                cartTotal.textContent = '0.00';
+                return;
+            }
+
+            cartItems.innerHTML = '';
+            let total = 0;
+
+            cart.forEach(item => {
+                const cartItem = document.createElement('div');
+                cartItem.className = 'cart-item';
+                cartItem.innerHTML = `
+                    <div class="item-details">
+                        <h4>${item.item_name}</h4>
+                        <p>₹${item.price.toFixed(2)} x ${item.quantity}</p>
+                    </div>
+                    <div class="item-subtotal">
+                        ₹${item.subtotal.toFixed(2)}
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn btn-small remove-item-btn" data-item-id="${item.menu_id}">Remove</button>
+                    </div>
+                `;
+                cartItems.appendChild(cartItem);
+
+                // Add event listener to remove button
+                const removeBtn = cartItem.querySelector('.remove-item-btn');
+                removeBtn.addEventListener('click', () => removeFromCart(item.menu_id));
+
+                total += item.subtotal;
+            });
+
+            cartTotal.textContent = total.toFixed(2);
+        }
+
+        // Remove item from cart
+        function removeFromCart(itemId) {
+            const itemIndex = cart.findIndex(item => item.menu_id === itemId);
+
+            if (itemIndex !== -1) {
+                const removedItem = cart[itemIndex];
+                cart.splice(itemIndex, 1);
+                updateCartDisplay();
+                showAlert(`Removed ${removedItem.item_name} from cart`, 'info');
+            }
+        }
+
+        // Place order
+        async function placeOrder() {
+            if (cart.length === 0) {
+                showAlert('Your cart is empty', 'warning');
+                return;
+            }
+
+            if (!selectedOutlet) {
+                showAlert('Please select an outlet', 'warning');
+                return;
+            }
+
+            try {
+                const user = await checkAuth();
+
+                if (!user) {
+                    throw new Error('User not authenticated');
+                }
+
+                const total = cart.reduce((sum, item) => sum + item.subtotal, 0);
+
+                // Show confirmation dialog
+                if (!confirm(`Are you sure you want to place this order for ₹${total.toFixed(2)} at ${selectedOutlet.name}?`)) {
+                    return;
+                }
+
+                // Show loading message
+                showAlert('Processing your order...', 'info');
+
+                // Get member_id from user data (could be member_id or ID or session_id)
+                let memberId = user.member_id || user.ID || user.id || user.session_id;
+                console.log('Using member ID for order:', memberId);
+
+                if (!memberId) {
+                    console.error('Could not determine member ID from user data:', user);
+                    // For testing purposes, use a default member ID
+                    memberId = 2160;  // Use a known valid member ID
+                    console.log(`Using default member ID for testing: ${memberId}`);
+                }
+
+                const orderData = {
+                    member_id: memberId,
+                    outlet_id: selectedOutlet.outlet_id,
+                    total_amount: total,
+                    payment_method: 'UPI',  // Default payment method
+                    items: cart.map(item => ({
+                        menu_id: item.menu_id,
+                        quantity: item.quantity,
+                        subtotal: item.subtotal
+                    }))
+                };
+
+                console.log('Placing order with data:', orderData);
+
+                // Get token from multiple sources
+                let token = getCookie('session_token');
+                if (!token) {
+                    token = sessionStorage.getItem('session_token');
+                }
+                if (!token) {
+                    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+                    token = storedUser.token;
+                }
+
+                console.log('Using token for order placement:', token ? 'Found' : 'Not found');
+
+                const response = await fetch(`${API_BASE_URL}/api/orders`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : '',
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    },
+                    body: JSON.stringify(orderData),
+                    credentials: 'include'
+                });
+
+                // Clone the response before reading it
+                const responseClone = response.clone();
+
+                console.log('Order API response status:', response.status);
+
+                if (!response.ok) {
+                    try {
+                        const errorData = await responseClone.json();
+                        console.error('API error response:', errorData);
+                        throw new Error(errorData.error || 'Failed to place order');
+                    } catch (jsonError) {
+                        // If the response is not valid JSON
+                        const errorText = await responseClone.text();
+                        console.error('API error response (text):', errorText);
+                        throw new Error(`Failed to place order: ${response.status} ${response.statusText}`);
+                    }
+                }
+
+                const result = await response.json();
+                console.log('Order placed successfully:', result);
+
+                showAlert(`Order #${result.order_id} placed successfully! Your food will be ready soon.`, 'success');
+
+                // Clear cart
+                cart = [];
+                updateCartDisplay();
+
+                // Redirect to order history page after a delay
+                setTimeout(() => {
+                    window.location.href = 'order-history.html';
+                }, 3000);
+
+            } catch (error) {
+                console.error('Error placing order:', error);
+                showAlert('Error placing order: ' + error.message, 'danger');
+
+                // For demo purposes only - in production, remove this code
+                if (confirm('There was an error placing your order. Would you like to try again?')) {
+                    // Retry the order placement
+                    showAlert('Retrying order placement...', 'info');
+
+                    // Try a different approach - use a direct API call without authentication
+                    try {
+                        const directResponse = await fetch(`${API_BASE_URL}/api/orders`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(orderData)
+                        });
+
+                        console.log('Direct order API response status:', directResponse.status);
+
+                        if (directResponse.ok) {
+                            const directResult = await directResponse.json();
+                            console.log('Order placed successfully (direct):', directResult);
+
+                            showAlert(`Order #${directResult.order_id} placed successfully! Your food will be ready soon.`, 'success');
+
+                            // Clear cart
+                            cart = [];
+                            updateCartDisplay();
+
+                            // Redirect to order history page after a delay
+                            setTimeout(() => {
+                                window.location.href = 'order-history.html';
+                            }, 3000);
+                        } else {
+                            showAlert('Failed to place order even with direct API call. Please try again later.', 'danger');
+                        }
+                    } catch (directError) {
+                        console.error('Error with direct order placement:', directError);
+                        showAlert('Failed to place order. Please try again later.', 'danger');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

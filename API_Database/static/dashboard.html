@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - QuickBites</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="dashboard.html">Dashboard</a></li>
+                        <li><a href="place-order.html">Place Order</a></li>
+                        <li><a href="my-orders.html">My Orders</a></li>
+                        <li><a href="profile.html">Profile</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <div class="dashboard-header">
+            <h1>Welcome to QuickBites</h1>
+            <div id="user-info">
+                <span id="welcome-message">Welcome, Student</span>
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            <div class="dashboard-section">
+                <h2>Quick Actions</h2>
+                <div class="action-cards">
+                    <div class="action-card">
+                        <div class="action-icon">🍔</div>
+                        <h3>Place Order</h3>
+                        <p>Order food from any of our campus outlets</p>
+                        <a href="place-order.html" class="btn btn-primary">Order Now</a>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-icon">📋</div>
+                        <h3>View Orders</h3>
+                        <p>Check the status of your recent orders</p>
+                        <a href="my-orders.html" class="btn btn-primary">My Orders</a>
+                    </div>
+                    <div class="action-card">
+                        <div class="action-icon">👤</div>
+                        <h3>Profile</h3>
+                        <p>Update your profile information</p>
+                        <a href="profile.html" class="btn btn-primary">View Profile</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-section">
+                <h2>Recent Orders</h2>
+                <div class="recent-orders" id="recent-orders">
+                    <div class="loading">Loading recent orders...</div>
+                </div>
+                <div class="view-all-link">
+                    <a href="my-orders.html">View All Orders</a>
+                </div>
+            </div>
+
+            <div class="dashboard-section">
+                <h2>Available Outlets</h2>
+                <div class="outlets-grid" id="outlets-grid">
+                    <div class="loading">Loading outlets...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is logged in
+                const user = await requireLogin();
+
+                if (user) {
+                    // Update welcome message
+                    document.getElementById('welcome-message').textContent = `Welcome, ${user.username}`;
+
+                    // Load recent orders
+                    loadRecentOrders();
+
+                    // Load outlets
+                    loadOutlets();
+                }
+            } catch (error) {
+                console.error('Error initializing dashboard:', error);
+                showAlert('Error loading dashboard: ' + error.message, 'danger');
+            }
+        });
+
+        // Load recent orders
+        async function loadRecentOrders() {
+            try {
+                // Get current user
+                const user = await getCurrentUser();
+
+                if (!user) {
+                    throw new Error('User not authenticated');
+                }
+
+                // Fetch orders from API
+                const response = await fetch(`${API_BASE_URL}/api/orders/student/${user.id}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load orders');
+                }
+
+                const orders = await response.json();
+
+                // Display only the 3 most recent orders
+                displayRecentOrders(orders.slice(0, 3));
+            } catch (error) {
+                console.error('Error loading recent orders:', error);
+                document.getElementById('recent-orders').innerHTML =
+                    '<div class="alert alert-danger">Error loading recent orders: ' + error.message + '</div>';
+            }
+        }
+
+        // Display recent orders
+        function displayRecentOrders(orders) {
+            const ordersContainer = document.getElementById('recent-orders');
+
+            if (orders.length === 0) {
+                ordersContainer.innerHTML = '<div class="no-data">No recent orders found</div>';
+                return;
+            }
+
+            let html = '';
+
+            orders.forEach(order => {
+                const orderDate = new Date(order.order_time);
+                const formattedDate = orderDate.toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                });
+
+                html += `
+                    <div class="recent-order-card">
+                        <div class="order-status-indicator status-${getStatusClass(order.order_status)}"></div>
+                        <div class="order-details">
+                            <div class="order-header">
+                                <div class="order-id">Order #${order.order_id}</div>
+                                <div class="order-status status-${getStatusClass(order.order_status)}">${order.order_status}</div>
+                            </div>
+                            <div class="order-info">
+                                <div><strong>Outlet:</strong> ${order.outlet_name}</div>
+                                <div><strong>Date:</strong> ${formattedDate}</div>
+                                <div><strong>Total:</strong> ₹${parseFloat(order.total_amount).toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div class="order-actions">
+                            <a href="my-orders.html" class="btn btn-sm btn-primary">View Details</a>
+                        </div>
+                    </div>
+                `;
+            });
+
+            ordersContainer.innerHTML = html;
+        }
+
+        // Get status class for styling
+        function getStatusClass(status) {
+            switch (status) {
+                case 'Completed':
+                    return 'completed';
+                case 'Pending':
+                    return 'pending';
+                case 'Cancelled':
+                    return 'cancelled';
+                default:
+                    return 'unknown';
+            }
+        }
+
+        // Load outlets
+        async function loadOutlets() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/outlets`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load outlets');
+                }
+
+                const outlets = await response.json();
+                displayOutlets(outlets);
+            } catch (error) {
+                console.error('Error loading outlets:', error);
+                document.getElementById('outlets-grid').innerHTML =
+                    '<div class="alert alert-danger">Error loading outlets: ' + error.message + '</div>';
+            }
+        }
+
+        // Display outlets
+        function displayOutlets(outlets) {
+            const outletsContainer = document.getElementById('outlets-grid');
+
+            if (outlets.length === 0) {
+                outletsContainer.innerHTML = '<div class="no-data">No outlets available</div>';
+                return;
+            }
+
+            let html = '';
+
+            outlets.forEach(outlet => {
+                html += `
+                    <div class="outlet-card">
+                        <div class="outlet-card-header">
+                            <h3>${outlet.name}</h3>
+                        </div>
+                        <div class="outlet-card-body">
+                            <p><strong>Location:</strong> ${outlet.location || 'Not specified'}</p>
+                        </div>
+                        <div class="outlet-card-footer">
+                            <a href="place-order.html" class="btn btn-primary">Order Now</a>
+                        </div>
+                    </div>
+                `;
+            });
+
+            outletsContainer.innerHTML = html;
+        }
+    </script>
+
+    <style>
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .dashboard-header h1 {
+            margin: 0;
+        }
+
+        #user-info {
+            font-size: 1.1rem;
+        }
+
+        .dashboard-section {
+            margin-bottom: 3rem;
+        }
+
+        .dashboard-section h2 {
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .action-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .action-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .action-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .action-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .action-card h3 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+
+        .action-card p {
+            margin-bottom: 1.5rem;
+            color: #6c757d;
+        }
+
+        .recent-orders {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .recent-order-card {
+            display: flex;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .order-status-indicator {
+            width: 8px;
+            flex-shrink: 0;
+        }
+
+        .status-completed {
+            background-color: #28a745;
+        }
+
+        .status-pending {
+            background-color: #ffc107;
+        }
+
+        .status-cancelled {
+            background-color: #dc3545;
+        }
+
+        .status-unknown {
+            background-color: #6c757d;
+        }
+
+        .order-details {
+            flex: 1;
+            padding: 1rem;
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .order-id {
+            font-weight: bold;
+        }
+
+        .order-status {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .order-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .order-actions {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .view-all-link {
+            text-align: right;
+            margin-top: 1rem;
+        }
+
+        .view-all-link a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .view-all-link a:hover {
+            text-decoration: underline;
+        }
+
+        .outlets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .outlet-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+
+        .outlet-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .outlet-card-header {
+            padding: 1rem;
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #eee;
+        }
+
+        .outlet-card-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+
+        .outlet-card-body {
+            padding: 1rem;
+        }
+
+        .outlet-card-footer {
+            padding: 1rem;
+            border-top: 1px solid #eee;
+            text-align: center;
+        }
+
+        .loading, .no-data {
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .action-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .outlets-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</body>
+</html>

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Orders - QuickBites</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="dashboard.html">Dashboard</a></li>
+                        <li><a href="place-order.html">Place Order</a></li>
+                        <li><a href="my-orders.html">My Orders</a></li>
+                        <li><a href="profile.html">Profile</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">My Orders</h1>
+
+        <div class="orders-container">
+            <div class="orders-filter">
+                <div class="form-group">
+                    <label for="status-filter">Filter by Status</label>
+                    <select id="status-filter" class="form-control">
+                        <option value="">All Orders</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button id="apply-filter-btn" class="btn btn-primary">Apply Filter</button>
+                    <button id="reset-filter-btn" class="btn btn-secondary">Reset</button>
+                </div>
+            </div>
+
+            <div class="orders-list" id="orders-list">
+                <div class="loading">Loading your orders...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Details Modal -->
+    <div class="modal" id="order-details-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Order Details</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body" id="order-details-content">
+                <!-- Order details will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is logged in
+                const user = await requireLogin();
+
+                if (user) {
+                    // Load orders
+                    loadOrders();
+
+                    // Set up event listeners
+                    document.getElementById('apply-filter-btn').addEventListener('click', applyFilter);
+                    document.getElementById('reset-filter-btn').addEventListener('click', resetFilter);
+                    document.querySelector('.close').addEventListener('click', closeOrderDetailsModal);
+                }
+            } catch (error) {
+                console.error('Error initializing page:', error);
+                showAlert('Error loading page: ' + error.message, 'danger');
+            }
+        });
+
+        // Load orders for the current user
+        async function loadOrders(statusFilter = '') {
+            try {
+                // Get current user
+                const user = await getCurrentUser();
+
+                if (!user) {
+                    throw new Error('User not authenticated');
+                }
+
+                const ordersContainer = document.getElementById('orders-list');
+                ordersContainer.innerHTML = '<div class="loading">Loading your orders...</div>';
+
+                // Fetch orders from API
+                const response = await fetch(`${API_BASE_URL}/api/orders/student/${user.id}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    // Clone the response before reading it
+                    const responseClone = response.clone();
+
+                    // Try to get more detailed error information
+                    try {
+                        const errorData = await responseClone.json();
+                        console.error('API error response:', errorData);
+                        throw new Error(errorData.error || `Failed to load orders: ${response.status} ${response.statusText}`);
+                    } catch (jsonError) {
+                        // If the response is not valid JSON
+                        const errorText = await responseClone.text();
+                        console.error('API error response (text):', errorText);
+                        throw new Error(`Failed to load orders: ${response.status} ${response.statusText}`);
+                    }
+                }
+
+                const orders = await response.json();
+
+                // Filter orders by status if filter is applied
+                let filteredOrders = orders;
+                if (statusFilter) {
+                    filteredOrders = orders.filter(order => order.order_status === statusFilter);
+                }
+
+                displayOrders(filteredOrders);
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                document.getElementById('orders-list').innerHTML =
+                    '<div class="alert alert-danger">Error loading orders: ' + error.message + '</div>';
+            }
+        }
+
+        // Display orders
+        function displayOrders(orders) {
+            const ordersContainer = document.getElementById('orders-list');
+
+            if (orders.length === 0) {
+                ordersContainer.innerHTML = '<div class="no-data">No orders found</div>';
+                return;
+            }
+
+            let html = '';
+
+            orders.forEach(order => {
+                const orderDate = new Date(order.order_time);
+                const formattedDate = orderDate.toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                });
+
+                const formattedTime = orderDate.toLocaleTimeString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                html += `
+                    <div class="order-card">
+                        <div class="order-header">
+                            <div class="order-id">Order #${order.order_id}</div>
+                            <div class="order-status status-${getStatusClass(order.order_status)}">${order.order_status}</div>
+                        </div>
+                        <div class="order-body">
+                            <div class="order-info">
+                                <div><strong>Outlet:</strong> ${order.outlet_name}</div>
+                                <div><strong>Date:</strong> ${formattedDate} at ${formattedTime}</div>
+                                <div><strong>Total:</strong> ₹${parseFloat(order.total_amount).toFixed(2)}</div>
+                            </div>
+                            <div class="order-summary">
+                                <strong>Items:</strong> ${summarizeOrderItems(order.items)}
+                            </div>
+                        </div>
+                        <div class="order-footer">
+                            <button class="btn btn-primary view-details-btn" data-order-id="${order.order_id}">View Details</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            ordersContainer.innerHTML = html;
+
+            // Add event listeners to view details buttons
+            const viewDetailsButtons = ordersContainer.querySelectorAll('.view-details-btn');
+            viewDetailsButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const orderId = parseInt(this.getAttribute('data-order-id'), 10);
+                    const order = orders.find(o => o.order_id === orderId);
+                    if (order) {
+                        showOrderDetails(order);
+                    }
+                });
+            });
+        }
+
+        // Get status class for styling
+        function getStatusClass(status) {
+            switch (status) {
+                case 'Completed':
+                    return 'completed';
+                case 'Pending':
+                    return 'pending';
+                case 'Cancelled':
+                    return 'cancelled';
+                default:
+                    return 'unknown';
+            }
+        }
+
+        // Summarize order items for display in the order card
+        function summarizeOrderItems(items) {
+            if (!items || items.length === 0) {
+                return 'No items';
+            }
+
+            if (items.length === 1) {
+                return `${items[0].item_name} × ${items[0].quantity}`;
+            }
+
+            return `${items[0].item_name} × ${items[0].quantity} and ${items.length - 1} more item(s)`;
+        }
+
+        // Show order details in modal
+        function showOrderDetails(order) {
+            const orderDetailsContent = document.getElementById('order-details-content');
+
+            const orderDate = new Date(order.order_time);
+            const formattedDate = orderDate.toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+            });
+
+            const formattedTime = orderDate.toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            let html = `
+                <div class="order-details">
+                    <div class="order-details-header">
+                        <h3>Order #${order.order_id}</h3>
+                        <div class="order-status status-${getStatusClass(order.order_status)}">${order.order_status}</div>
+                    </div>
+
+                    <div class="order-details-info">
+                        <div><strong>Outlet:</strong> ${order.outlet_name}</div>
+                        <div><strong>Location:</strong> ${order.outlet_location || 'Not specified'}</div>
+                        <div><strong>Date:</strong> ${formattedDate} at ${formattedTime}</div>
+                        <div><strong>Payment Status:</strong> ${order.payment_status || 'Unknown'}</div>
+                    </div>
+
+                    <div class="order-details-items">
+                        <h4>Order Items</h4>
+                        <div class="order-items-list">
+            `;
+
+            if (order.items && order.items.length > 0) {
+                order.items.forEach(item => {
+                    html += `
+                        <div class="order-item">
+                            <div class="order-item-details">
+                                <div class="order-item-name">${item.item_name}</div>
+                                <div class="order-item-price">₹${parseFloat(item.subtotal / item.quantity).toFixed(2)} × ${item.quantity}</div>
+                            </div>
+                            <div class="order-item-subtotal">₹${parseFloat(item.subtotal).toFixed(2)}</div>
+                        </div>
+                    `;
+                });
+            } else {
+                html += '<div class="no-data">No items found for this order</div>';
+            }
+
+            html += `
+                        </div>
+                    </div>
+
+                    <div class="order-details-total">
+                        <div class="total-label">Total:</div>
+                        <div class="total-amount">₹${parseFloat(order.total_amount).toFixed(2)}</div>
+                    </div>
+                </div>
+            `;
+
+            orderDetailsContent.innerHTML = html;
+
+            // Show modal
+            document.getElementById('order-details-modal').style.display = 'block';
+        }
+
+        // Close order details modal
+        function closeOrderDetailsModal() {
+            document.getElementById('order-details-modal').style.display = 'none';
+        }
+
+        // Apply status filter
+        function applyFilter() {
+            const statusFilter = document.getElementById('status-filter').value;
+            loadOrders(statusFilter);
+        }
+
+        // Reset filter
+        function resetFilter() {
+            document.getElementById('status-filter').value = '';
+            loadOrders();
+        }
+    </script>
+
+    <style>
+        .orders-container {
+            margin-top: 2rem;
+        }
+
+        .orders-filter {
+            display: flex;
+            align-items: flex-end;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .orders-filter .form-group {
+            flex: 1;
+        }
+
+        .orders-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .order-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #eee;
+        }
+
+        .order-id {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .order-status {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .status-completed {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .status-pending {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        .status-cancelled {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .status-unknown {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .order-body {
+            padding: 1rem;
+        }
+
+        .order-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .order-summary {
+            margin-top: 0.5rem;
+            color: #6c757d;
+        }
+
+        .order-footer {
+            padding: 1rem;
+            border-top: 1px solid #eee;
+            text-align: right;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 0;
+            width: 60%;
+            max-width: 700px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+        }
+
+        .close {
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 1rem;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .order-details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .order-details-header h3 {
+            margin: 0;
+        }
+
+        .order-details-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .order-details-items {
+            margin-bottom: 1.5rem;
+        }
+
+        .order-details-items h4 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .order-items-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .order-item:last-child {
+            border-bottom: none;
+        }
+
+        .order-item-name {
+            font-weight: bold;
+        }
+
+        .order-item-price {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .order-item-subtotal {
+            font-weight: bold;
+        }
+
+        .order-details-total {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+            font-weight: bold;
+        }
+
+        .total-amount {
+            font-size: 1.2rem;
+            color: #28a745;
+        }
+
+        .loading, .no-data {
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .orders-filter {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .modal-content {
+                width: 90%;
+                margin: 20% auto;
+            }
+        }
+    </style>
+</body>
+</html>

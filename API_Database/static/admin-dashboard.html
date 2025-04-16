@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - QuickBites</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="admin-dashboard.html">Dashboard</a></li>
+                        <li><a href="user-management.html">Users</a></li>
+                        <li><a href="outlet-management.html">Outlets</a></li>
+                        <li><a href="outlet-manager-assignment.html">Assign Managers</a></li>
+                        <li><a href="system-reports.html">Reports</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <div class="dashboard-header">
+            <h1>Admin Dashboard</h1>
+            <div id="user-info">
+                <span id="welcome-message">Welcome, Admin</span>
+            </div>
+        </div>
+
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <h3>Total Users</h3>
+                <div class="stat-value" id="total-users">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Outlets</h3>
+                <div class="stat-value" id="total-outlets">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Orders</h3>
+                <div class="stat-value" id="total-orders">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Revenue</h3>
+                <div class="stat-value" id="total-revenue">--</div>
+            </div>
+        </div>
+
+        <div class="dashboard-cards">
+            <div class="dashboard-card">
+                <h3>User Management</h3>
+                <p>Manage users, roles, and permissions</p>
+                <a href="user-management.html" class="btn mt-2">Manage Users</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Outlet Management</h3>
+                <p>Manage food outlets and their details</p>
+                <a href="outlet-management.html" class="btn mt-2">Manage Outlets</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Manager Assignment</h3>
+                <p>Assign outlet managers to outlets (one-to-one)</p>
+                <a href="outlet-manager-assignment.html" class="btn mt-2">Assign Managers</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Order Management</h3>
+                <p>View and manage all orders</p>
+                <a href="order-management.html" class="btn mt-2">Manage Orders</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Menu Management</h3>
+                <p>Manage menu items for all outlets</p>
+                <a href="menu-management.html" class="btn mt-2">Manage Menu</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>System Reports</h3>
+                <p>View system reports and analytics</p>
+                <a href="system-reports.html" class="btn mt-2">View Reports</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is an admin
+                const user = await requireAdmin();
+                
+                if (user) {
+                    // Update welcome message
+                    document.getElementById('welcome-message').textContent = `Welcome, ${user.username}`;
+                    
+                    // Load dashboard stats
+                    loadDashboardStats();
+                }
+            } catch (error) {
+                console.error('Error initializing dashboard:', error);
+                showAlert('Error loading dashboard: ' + error.message, 'danger');
+            }
+        });
+        
+        // Load dashboard statistics
+        async function loadDashboardStats() {
+            try {
+                // For demo purposes, we'll use dummy data
+                // In a real implementation, you would fetch this from an API
+                
+                // Simulate API call delay
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Update stats with dummy data
+                document.getElementById('total-users').textContent = '125';
+                document.getElementById('total-outlets').textContent = '6';
+                document.getElementById('total-orders').textContent = '1,248';
+                document.getElementById('total-revenue').textContent = '₹89,750';
+                
+                // In a real implementation, you would fetch from an API:
+                /*
+                const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load dashboard statistics');
+                }
+                
+                const stats = await response.json();
+                
+                document.getElementById('total-users').textContent = stats.users.toLocaleString();
+                document.getElementById('total-outlets').textContent = stats.outlets.toLocaleString();
+                document.getElementById('total-orders').textContent = stats.orders.toLocaleString();
+                document.getElementById('total-revenue').textContent = '₹' + stats.revenue.toLocaleString();
+                */
+            } catch (error) {
+                console.error('Error loading dashboard stats:', error);
+                showAlert('Error loading dashboard statistics: ' + error.message, 'warning');
+            }
+        }
+    </script>
+</body>
+</html>

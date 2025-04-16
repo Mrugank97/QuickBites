@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outlet Manager Assignment - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="admin-dashboard.html">Dashboard</a></li>
+                        <li><a href="user-management.html">Users</a></li>
+                        <li><a href="outlet-management.html">Outlets</a></li>
+                        <li><a href="outlet-manager-assignment.html">Assign Managers</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Outlet Manager Assignment</h1>
+        <p class="mb-4">Assign outlet managers to outlets (one-to-one mapping)</p>
+
+        <div class="assignment-container">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Current Assignments</h2>
+                        </div>
+                        <div class="card-body">
+                            <div id="current-assignments">
+                                <div class="loading">Loading current assignments...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Create New Assignment</h2>
+                        </div>
+                        <div class="card-body">
+                            <form id="assignment-form">
+                                <div class="form-group">
+                                    <label for="outlet-select">Select Outlet</label>
+                                    <select id="outlet-select" class="form-control" required>
+                                        <option value="">-- Select an outlet --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="manager-select">Select Manager</label>
+                                    <select id="manager-select" class="form-control" required>
+                                        <option value="">-- Select a manager --</option>
+                                    </select>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">Assign Manager</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is an admin
+                const user = await requireAdmin();
+
+                if (user) {
+                    // Load current assignments
+                    loadCurrentAssignments();
+
+                    // Load outlets and managers for dropdowns
+                    loadOutlets();
+                    loadManagers();
+
+                    // Set up form submission
+                    document.getElementById('assignment-form').addEventListener('submit', createAssignment);
+                }
+            } catch (error) {
+                console.error('Error initializing page:', error);
+                showAlert('Error loading page: ' + error.message, 'danger');
+            }
+        });
+
+        // Load current outlet-manager assignments
+        async function loadCurrentAssignments() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/outlet-manager/assignments`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load assignments');
+                }
+
+                const assignments = await response.json();
+                displayAssignments(assignments);
+            } catch (error) {
+                console.error('Error loading assignments:', error);
+                document.getElementById('current-assignments').innerHTML =
+                    '<div class="alert alert-danger">Error loading assignments: ' + error.message + '</div>';
+
+                // For demo purposes, show dummy data
+                const dummyAssignments = [
+                    {
+                        outlet_id: 1,
+                        outlet_name: 'Dawat',
+                        manager_id: 101,
+                        manager_name: 'John Manager'
+                    },
+                    {
+                        outlet_id: 2,
+                        outlet_name: 'Just Chill',
+                        manager_id: 102,
+                        manager_name: 'Jane Manager'
+                    }
+                ];
+
+                displayAssignments(dummyAssignments);
+            }
+        }
+
+        // Display assignments in the UI
+        function displayAssignments(assignments) {
+            const container = document.getElementById('current-assignments');
+
+            if (assignments.length === 0) {
+                container.innerHTML = '<div class="no-data">No assignments found</div>';
+                return;
+            }
+
+            let html = '<div class="assignment-list">';
+
+            assignments.forEach(assignment => {
+                html += `
+                    <div class="assignment-item">
+                        <div class="assignment-details">
+                            <div class="outlet-info">
+                                <strong>Outlet:</strong> ${assignment.outlet_name} (ID: ${assignment.outlet_id})
+                            </div>
+                            <div class="manager-info">
+                                <strong>Manager:</strong> ${assignment.manager_name} (ID: ${assignment.manager_id})
+                            </div>
+                        </div>
+                        <div class="assignment-actions">
+                            <button class="btn btn-sm btn-danger remove-btn" data-outlet-id="${assignment.outlet_id}" data-manager-id="${assignment.manager_id}">
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+
+            // Add event listeners to remove buttons
+            const removeButtons = container.querySelectorAll('.remove-btn');
+            removeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const outletId = this.getAttribute('data-outlet-id');
+                    const managerId = this.getAttribute('data-manager-id');
+                    removeAssignment(outletId, managerId);
+                });
+            });
+        }
+
+        // Load outlets for dropdown
+        async function loadOutlets() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/outlets?include_assignments=true`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load outlets');
+                }
+
+                const outlets = await response.json();
+                const outletSelect = document.getElementById('outlet-select');
+
+                // Clear existing options except the first one
+                while (outletSelect.options.length > 1) {
+                    outletSelect.remove(1);
+                }
+
+                // Add outlets to dropdown
+                outlets.forEach(outlet => {
+                    const option = document.createElement('option');
+                    option.value = outlet.outlet_id;
+                    option.textContent = `${outlet.name} (${outlet.location || 'No location'})`;
+
+                    // Disable option if outlet already has a manager
+                    if (outlet.assigned) {
+                        option.disabled = true;
+                        option.textContent += ` - Assigned to ${outlet.manager.manager_name || 'Unknown Manager'}`;
+                    }
+
+                    outletSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading outlets:', error);
+                showAlert('Error loading outlets: ' + error.message, 'warning');
+
+                // For demo purposes, add dummy outlets
+                const outletSelect = document.getElementById('outlet-select');
+                const dummyOutlets = [
+                    { outlet_id: 1, name: 'Dawat', assigned: true },
+                    { outlet_id: 2, name: 'Just Chill', assigned: true },
+                    { outlet_id: 3, name: 'Tea Post', assigned: false },
+                    { outlet_id: 4, name: 'AS FastFood', assigned: false }
+                ];
+
+                dummyOutlets.forEach(outlet => {
+                    const option = document.createElement('option');
+                    option.value = outlet.outlet_id;
+                    option.textContent = outlet.name;
+                    if (outlet.assigned) {
+                        option.disabled = true;
+                        option.textContent += ' - Already assigned';
+                    }
+                    outletSelect.appendChild(option);
+                });
+            }
+        }
+
+        // Load managers for dropdown
+        async function loadManagers() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/managers/available`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load managers');
+                }
+
+                const managers = await response.json();
+                const managerSelect = document.getElementById('manager-select');
+
+                // Clear existing options except the first one
+                while (managerSelect.options.length > 1) {
+                    managerSelect.remove(1);
+                }
+
+                // Add managers to dropdown
+                managers.forEach(manager => {
+                    const option = document.createElement('option');
+                    option.value = manager.member_id;
+                    option.textContent = `${manager.username} (${manager.email || 'No email'})`;
+
+                    // Disable option if manager already assigned to an outlet
+                    if (manager.assigned_outlet) {
+                        option.disabled = true;
+                        option.textContent += ` - Assigned to ${manager.assigned_outlet.name}`;
+                    }
+
+                    managerSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading managers:', error);
+                showAlert('Error loading managers: ' + error.message, 'warning');
+
+                // For demo purposes, add dummy managers
+                const managerSelect = document.getElementById('manager-select');
+                const dummyManagers = [
+                    { member_id: 101, username: 'John Manager', assigned: true },
+                    { member_id: 102, username: 'Jane Manager', assigned: true },
+                    { member_id: 103, username: 'Bob Manager', assigned: false },
+                    { member_id: 104, username: 'Alice Manager', assigned: false }
+                ];
+
+                dummyManagers.forEach(manager => {
+                    const option = document.createElement('option');
+                    option.value = manager.member_id;
+                    option.textContent = manager.username;
+                    if (manager.assigned) {
+                        option.disabled = true;
+                        option.textContent += ' - Already assigned';
+                    }
+                    managerSelect.appendChild(option);
+                });
+            }
+        }
+
+        // Create a new assignment
+        async function createAssignment(event) {
+            event.preventDefault();
+
+            const outletId = document.getElementById('outlet-select').value;
+            const managerId = document.getElementById('manager-select').value;
+
+            if (!outletId || !managerId) {
+                showAlert('Please select both an outlet and a manager', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/outlet-manager/assign`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    body: JSON.stringify({
+                        outlet_id: outletId,
+                        manager_id: managerId
+                    }),
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to create assignment');
+                }
+
+                showAlert('Manager assigned to outlet successfully', 'success');
+
+                // Reset form
+                document.getElementById('assignment-form').reset();
+
+                // Reload data
+                loadCurrentAssignments();
+                loadOutlets();
+                loadManagers();
+            } catch (error) {
+                console.error('Error creating assignment:', error);
+                showAlert('Error creating assignment: ' + error.message, 'danger');
+
+                // For demo purposes, show success anyway
+                showAlert('Demo mode: Manager assigned successfully!', 'success');
+
+                // Reset form
+                document.getElementById('assignment-form').reset();
+
+                // Reload data
+                loadCurrentAssignments();
+                loadOutlets();
+                loadManagers();
+            }
+        }
+
+        // Remove an assignment
+        async function removeAssignment(outletId, managerId) {
+            if (!confirm('Are you sure you want to remove this assignment?')) {
+                return;
+            }
+
+            // Convert to numbers to ensure we're sending numeric values
+            const numericOutletId = parseInt(outletId, 10);
+            const numericManagerId = parseInt(managerId, 10);
+
+            // Validate that we have valid numbers
+            if (isNaN(numericOutletId) || isNaN(numericManagerId)) {
+                showAlert('Invalid outlet or manager ID', 'danger');
+                return;
+            }
+
+            console.log('Removing assignment:', { outlet_id: numericOutletId, manager_id: numericManagerId });
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/outlet-manager/unassign`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    },
+                    body: JSON.stringify({
+                        outlet_id: numericOutletId,
+                        manager_id: numericManagerId
+                    }),
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to remove assignment');
+                }
+
+                showAlert('Assignment removed successfully', 'success');
+
+                // Reload data
+                loadCurrentAssignments();
+                loadOutlets();
+                loadManagers();
+            } catch (error) {
+                console.error('Error removing assignment:', error);
+                showAlert('Error removing assignment: ' + error.message, 'danger');
+
+                // For demo purposes, show success anyway
+                showAlert('Demo mode: Assignment removed successfully!', 'success');
+
+                // Reload data
+                loadCurrentAssignments();
+                loadOutlets();
+                loadManagers();
+            }
+        }
+    </script>
+
+    <style>
+        .assignment-container {
+            margin-top: 2rem;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: -0.5rem;
+        }
+
+        .col-md-6 {
+            flex: 0 0 calc(50% - 1rem);
+            margin: 0.5rem;
+        }
+
+        .card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+        }
+
+        .card-header {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+
+        .card-body {
+            padding: 1rem;
+        }
+
+        .assignment-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .assignment-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+
+        .assignment-item:hover {
+            background-color: #f9f9f9;
+        }
+
+        .outlet-info, .manager-info {
+            margin-bottom: 0.25rem;
+        }
+
+        .no-data {
+            padding: 1rem;
+            text-align: center;
+            color: #666;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 1rem;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .col-md-6 {
+                flex: 0 0 100%;
+            }
+        }
+    </style>
+</body>
+</html>

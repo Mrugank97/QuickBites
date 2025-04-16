@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - QuickBites</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">QuickBites</div>
+                <nav>
+                    <ul>
+                        <li><a href="dashboard.html">Dashboard</a></li>
+                        <li><a href="profile.html">My Profile</a></li>
+                        <li><a href="#" id="logout-btn">Logout</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <h1 class="mt-4 mb-4">Welcome, <span id="user-name">User</span>!</h1>
+
+        <div class="dashboard">
+            <div class="dashboard-card">
+                <h3>My Profile</h3>
+                <p>View and edit your profile information</p>
+                <a href="profile.html" class="btn mt-2">View Profile</a>
+            </div>
+
+            <div class="dashboard-card" id="admin-card" style="display: none;">
+                <h3>Member Management</h3>
+                <p>Add, edit, or remove members</p>
+                <a href="admin-dashboard.html" class="btn mt-2">Manage Members</a>
+            </div>
+
+            <div class="dashboard-card">
+                <h3>Group Members</h3>
+                <p>View other members in your group</p>
+                <a href="members.html" class="btn mt-2">View Members</a>
+            </div>
+
+            <div class="dashboard-card" id="food-order-card">
+                <h3>Order Food</h3>
+                <p>Browse outlets and place your food order</p>
+                <a href="place-order.html" class="btn mt-2">Place Order</a>
+            </div>
+
+            <div class="dashboard-card" id="order-history-card">
+                <h3>Order History</h3>
+                <p>View your past orders and their status</p>
+                <a href="order-history.html" class="btn mt-2">View Orders</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check if user is authenticated
+                const user = await checkAuth();
+
+                if (user) {
+                    // Update user name
+                    document.getElementById('user-name').textContent = user.username;
+
+                    // Show admin card if user is admin
+                    if (user.role === 'admin') {
+                        document.getElementById('admin-card').style.display = 'block';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                showAlert('Error loading dashboard', 'danger');
+            }
+        });
+    </script>
+</body>
+</html>
