@@ -81,9 +81,4 @@ This project implements a food ordering system called QuickBites, focusing on co
 3. Start the Flask application with `python main.py`
 4. Access the API at `http://localhost:5001`
 
-## Dependencies
-
-- Flask
-- MySQL Connector
-- PyJWT
-- Requests
+Working Demonstration : [Link](https://drive.google.com/drive/folders/1c43iRpQfTdOiynji5I7AVUyOovuvAZwu?usp=drive_link)
